@@ -26,10 +26,10 @@ class DeribitClient:
             await self.ws_client.close()
 
     async def _call(self, method: str, params: Optional[dict[str, Any]] = None) -> Any:
-        """Make a JSON-RPC call to the Deribit API.
+        """Make a call to the Deribit REST API.
 
         Args:
-            method: The API method to call (e.g., "public/ticker")
+            method: The API method to call (e.g., "ticker")
             params: Optional parameters for the method
 
         Returns:
@@ -39,16 +39,10 @@ class DeribitClient:
             httpx.HTTPError: If the HTTP request fails
             ValueError: If the API returns an error
         """
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": method,
-            "params": params or {}
-        }
-
-        response = await self.client.post(
-            f"{self.base_url}/public/{method.replace('public/', '')}",
-            json=payload
+        # Use GET with query parameters for Deribit REST API
+        response = await self.client.get(
+            f"{self.base_url}/public/{method}",
+            params=params or {}
         )
         response.raise_for_status()
 
