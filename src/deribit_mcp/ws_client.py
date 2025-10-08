@@ -126,13 +126,30 @@ class WebSocketClient:
             logger.error(f"Error in receive loop: {e}")
 
     async def _handle_message(self, data: dict[str, Any]) -> None:
-        """Handle incoming message - either RPC response or subscription notification.
+        """Handle incoming message - either RPC response, subscription notification, or heartbeat.
 
         Args:
             data: Parsed JSON message
         """
+        method = data.get("method")
+
+        # Handle heartbeat messages
+        if method == "heartbeat":
+            params = data.get("params", {})
+            heartbeat_type = params.get("type")
+
+            if heartbeat_type == "test_request":
+                # Server is testing if we're alive - MUST respond with public/test
+                logger.debug("Received test_request heartbeat, responding with public/test")
+                # Send response without awaiting to avoid blocking message handler
+                asyncio.create_task(self._call("public/test", {}))
+            else:
+                # Regular heartbeat - no response needed
+                logger.debug("Received heartbeat from server")
+            return
+
         # Check if this is a subscription notification
-        if data.get("method") == "subscription":
+        if method == "subscription":
             channel = data["params"]["channel"]
             subscription_data = data["params"]["data"]
 
