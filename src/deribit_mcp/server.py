@@ -169,6 +169,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 arguments.get("kind"),
                 arguments.get("expired", False)
             )
+            # Return CSV directly as text (not JSON)
+            return [TextContent(type="text", text=result)]
         elif name == "get_last_trades":
             result = await client.get_last_trades_by_instrument(
                 arguments["instrument_name"],

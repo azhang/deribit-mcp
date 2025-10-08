@@ -84,17 +84,17 @@ class DeribitClient:
             params["depth"] = depth
         return await self._call("get_order_book", params)
 
-    async def get_instruments(
+    async def _get_instruments_raw(
         self,
         currency: str,
         kind: Optional[str] = None,
         expired: bool = False
     ) -> list[dict[str, Any]]:
-        """Get available instruments for a currency.
+        """Internal method to get raw instruments list.
 
         Args:
             currency: Currency symbol (e.g., "BTC", "ETH")
-            kind: Optional instrument kind ("future", "option", "spot", "future_combo", "option_combo")
+            kind: Optional instrument kind
             expired: Whether to include expired instruments
 
         Returns:
@@ -104,6 +104,57 @@ class DeribitClient:
         if kind is not None:
             params["kind"] = kind
         return await self._call("get_instruments", params)
+
+    async def get_instruments(
+        self,
+        currency: str,
+        kind: Optional[str] = None,
+        expired: bool = False
+    ) -> str:
+        """Get available instruments for a currency.
+
+        Args:
+            currency: Currency symbol (e.g., "BTC", "ETH")
+            kind: Optional instrument kind ("future", "option", "spot", "future_combo", "option_combo")
+            expired: Whether to include expired instruments
+
+        Returns:
+            CSV string with essential instrument fields
+        """
+        instruments = await self._get_instruments_raw(currency, kind, expired)
+
+        # Convert to CSV with only essential fields
+        if not instruments:
+            return "instrument_name\n"
+
+        # For options, include option-specific fields
+        if kind == "option":
+            header = "instrument_name,kind,strike,option_type,expiration_timestamp,is_active,settlement_currency"
+            rows = [header]
+            for inst in instruments:
+                rows.append(
+                    f"{inst['instrument_name']},"
+                    f"{inst['kind']},"
+                    f"{inst.get('strike', '')},"
+                    f"{inst.get('option_type', '')},"
+                    f"{inst['expiration_timestamp']},"
+                    f"{inst['is_active']},"
+                    f"{inst['settlement_currency']}"
+                )
+        else:
+            # For futures/spots, simpler format
+            header = "instrument_name,kind,expiration_timestamp,is_active,settlement_currency"
+            rows = [header]
+            for inst in instruments:
+                rows.append(
+                    f"{inst['instrument_name']},"
+                    f"{inst['kind']},"
+                    f"{inst.get('expiration_timestamp', '')},"
+                    f"{inst['is_active']},"
+                    f"{inst['settlement_currency']}"
+                )
+
+        return "\n".join(rows)
 
     async def get_last_trades_by_instrument(
         self,
@@ -186,7 +237,7 @@ class DeribitClient:
             4000,put,ETH_USDC-9OCT25-4000-P,0.18,0.1,0.3,...
         """
         # Step 1: Get all option instruments for this currency (HTTP)
-        instruments = await self.get_instruments(currency, kind="option", expired=False)
+        instruments = await self._get_instruments_raw(currency, kind="option", expired=False)
 
         # Step 2: Filter instruments by expiry date
         instrument_names = filter_instruments_by_expiry(instruments, expiry)
