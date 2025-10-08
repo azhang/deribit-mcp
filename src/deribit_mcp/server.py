@@ -118,6 +118,29 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="get_expirations",
+            description="Get available expiration dates for instruments. Much more efficient than calling get_instruments to find expirations.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "currency": {
+                        "type": "string",
+                        "description": "Currency symbol: BTC, ETH, USDC, USDT, 'any' for all, or 'grouped' for all grouped by currency",
+                    },
+                    "kind": {
+                        "type": "string",
+                        "description": "Instrument kind: 'future', 'option', or 'any'",
+                        "enum": ["future", "option", "any"],
+                    },
+                    "currency_pair": {
+                        "type": "string",
+                        "description": "Optional currency pair filter (e.g., 'eth_usdc', 'btc_usd', 'sol_usdc')",
+                    },
+                },
+                "required": ["currency", "kind"],
+            },
+        ),
+        Tool(
             name="get_options_chain",
             description="Get complete options chain for a specific expiry with real-time greeks, prices, volumes, and open interest. Returns data in CSV format for easy table viewing. Uses WebSocket for efficient real-time data.",
             inputSchema={
@@ -181,6 +204,14 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             result = await client.get_currencies()
         elif name == "get_index_price":
             result = await client.get_index_price(arguments["index_name"])
+        elif name == "get_expirations":
+            result = await client.get_expirations(
+                arguments["currency"],
+                arguments["kind"],
+                arguments.get("currency_pair")
+            )
+            # Return CSV directly as text (not JSON)
+            return [TextContent(type="text", text=result)]
         elif name == "get_options_chain":
             result = await client.get_options_chain(
                 arguments["currency"],

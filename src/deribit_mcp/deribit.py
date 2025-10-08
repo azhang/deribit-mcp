@@ -196,6 +196,55 @@ class DeribitClient:
         """
         return await self._call("get_index_price", {"index_name": index_name})
 
+    async def get_expirations(
+        self,
+        currency: str,
+        kind: str,
+        currency_pair: Optional[str] = None
+    ) -> str:
+        """Get available expiration dates for instruments.
+
+        Args:
+            currency: Currency symbol (BTC, ETH, USDC, USDT, "any", or "grouped")
+            kind: Instrument kind ("future", "option", or "any")
+            currency_pair: Optional currency pair filter (e.g., "eth_usdc", "btc_usd")
+
+        Returns:
+            CSV string with expirations
+        """
+        params = {"currency": currency, "kind": kind}
+        if currency_pair is not None:
+            params["currency_pair"] = currency_pair
+
+        result = await self._call("get_expirations", params)
+
+        # Result structure depends on currency parameter:
+        # - Specific currency/currency_pair: {currency: {kind: [expirations]}}
+        # - "any": {kind: [expirations]}
+        # - "grouped": {currency: {kind: [expirations]}}
+
+        rows = ["currency,kind,expiration"]
+
+        if not result:
+            return "\n".join(rows)
+
+        # Check if first value is a dict (grouped format) or list (any format)
+        first_value = next(iter(result.values()))
+
+        if isinstance(first_value, dict):
+            # Grouped format: {currency: {kind: [expirations]}}
+            for curr, kinds in result.items():
+                for k, expirations in kinds.items():
+                    for expiry in expirations:
+                        rows.append(f"{curr},{k},{expiry}")
+        else:
+            # "any" format: {kind: [expirations]}
+            for k, expirations in result.items():
+                for expiry in expirations:
+                    rows.append(f"any,{k},{expiry}")
+
+        return "\n".join(rows)
+
     async def get_options_chain(
         self,
         currency: str,
