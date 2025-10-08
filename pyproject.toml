@@ -1,0 +1,27 @@
+[project]
+name = "deribit-mcp"
+version = "0.1.0"
+description = "MCP server for accessing Deribit cryptocurrency exchange public API"
+readme = "README.md"
+authors = [
+    { name = "Allie c( ⁰ 〰 ⁰ )੭", email = "azhang@users.noreply.github.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp>=1.16.0",
+    "websockets>=15.0.1",
+]
+
+[project.scripts]
+deribit-mcp = "deribit_mcp:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+]

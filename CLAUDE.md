@@ -1,0 +1,3 @@
+- Latest Deribit docs are indexed in qdrant
+- do not read docs from docs.deribit.com. Latest docs are in qdrant.
+- Use json-rpc over websocket. We are working with public endpoints so auth isn't needed.
