@@ -42,20 +42,43 @@ export class DeribitClient {
       }
     }
 
-    const response = await fetch(url.toString());
+    // Retry logic for network issues
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await fetch(url.toString(), {
+          headers: {
+            'User-Agent': 'deribit-mcp/0.1.0'
+          }
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          const error = data.error;
+          throw new Error(`API Error ${error.code}: ${error.message}`);
+        }
+
+        return data.result;
+      } catch (error) {
+        console.error(`[Attempt ${attempt}/3] Fetch failed:`, error.message);
+        lastError = error;
+
+        // Only retry on network errors, not API errors
+        if (error.message.includes('API Error') || attempt === 3) {
+          throw error;
+        }
+
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+      }
     }
 
-    const data = await response.json();
-
-    if (data.error) {
-      const error = data.error;
-      throw new Error(`API Error ${error.code}: ${error.message}`);
-    }
-
-    return data.result;
+    throw lastError;
   }
 
   /**
