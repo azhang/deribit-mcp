@@ -1,9 +1,20 @@
 name = "deribit-mcp"
 main = "src/index.js"
 compatibility_date = "2025-10-09"
+compatibility_flags = ["nodejs_compat"]
 
-# Node.js compatibility for WebSocket and other Node APIs
-node_compat = true
+# Durable Objects configuration for MCP Agent
+[durable_objects]
+bindings = [
+  { class_name = "DeribitMCP", name = "MCP_OBJECT" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DeribitMCP"]
+
+[observability]
+enabled = true
 
 [env.production]
 

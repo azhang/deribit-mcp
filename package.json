@@ -10,8 +10,9 @@
     "stdio": "node src/stdio.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4",
-    "workers-mcp": "^0.0.13"
+    "@modelcontextprotocol/sdk": "1.19.1",
+    "agents": "^0.2.8",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250606.0",
