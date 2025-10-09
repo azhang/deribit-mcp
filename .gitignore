@@ -8,3 +8,12 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Node.js
+node_modules/
+package-lock.json
+*.log
+
+# Cloudflare/Wrangler
+.wrangler/
+.dev.vars

@@ -155,32 +155,32 @@ Example:
 
 ### 1. Instrument Name Parsing
 
-```python
-# Pattern: CURRENCY-EXPIRY-STRIKE-TYPE
-# Examples:
-#   BTC-27MAR25-50000-C (BTC-settled BTC option)
-#   ETH_USDC-9OCT25-4000-P (USDC-settled ETH option)
-#   SOL_USDC-15DEC25-100-C (USDC-settled SOL option)
+```javascript
+// Pattern: CURRENCY-EXPIRY-STRIKE-TYPE
+// Examples:
+//   BTC-27MAR25-50000-C (BTC-settled BTC option)
+//   ETH_USDC-9OCT25-4000-P (USDC-settled ETH option)
+//   SOL_USDC-15DEC25-100-C (USDC-settled SOL option)
 
-pattern = r'^([A-Z_]+)-(\d{1,2}[A-Z]{3}\d{2})-(\d+(?:\.\d+)?)-([CP])$'
+const pattern = /^([A-Z_]+)-(\d{1,2}[A-Z]{3}\d{2})-(\d+(?:\.\d+)?)-([CP])$/;
 ```
 
 ### 2. WebSocket Message Correlation
 
 Each JSON-RPC call has a unique ID for response matching:
 
-```python
+```javascript
 {
     "jsonrpc": "2.0",
-    "id": 42,              # Request ID
+    "id": 42,              // Request ID
     "method": "public/subscribe",
     "params": {...}
 }
 
-# Response will have same ID
+// Response will have same ID
 {
     "jsonrpc": "2.0",
-    "id": 42,              # Matches request
+    "id": 42,              // Matches request
     "result": [...]
 }
 ```
@@ -281,45 +281,49 @@ Key error scenarios:
 ## Code Structure
 
 ```
-deribit_mcp/
-├── ws_client.py       # WebSocket connection & message routing
+src/
+├── ws-client.js       # WebSocket connection & message routing
 │   ├── connect()      # Establish connection & handshake
-│   ├── subscribe_tickers()    # Subscribe to instruments
-│   └── wait_for_snapshots()   # Wait for data
+│   ├── subscribeTickers()    # Subscribe to instruments
+│   └── waitForSnapshots()   # Wait for data
 │
-├── options.py         # Parsing & CSV building
-│   ├── parse_instrument_name()      # Extract strike/expiry
-│   ├── filter_instruments_by_expiry()  # Filter instruments
-│   └── build_options_chain_csv()    # Format as CSV
+├── options.js         # Parsing & CSV building
+│   ├── parseInstrumentName()      # Extract strike/expiry
+│   ├── filterInstrumentsByExpiry()  # Filter instruments
+│   └── buildOptionsChainCSV()    # Format as CSV
 │
-└── deribit.py         # Main client (orchestration)
-    └── get_options_chain()  # Combines HTTP + WS
+├── deribit.js         # Main client (orchestration)
+│   └── getOptionsChain()  # Combines HTTP + WS
+│
+├── index.js           # Cloudflare Workers entry point
+└── stdio.js           # stdio server for local testing
 ```
 
 ## Example Usage
 
-```python
-from deribit_mcp import DeribitClient
+```javascript
+import { DeribitClient } from './deribit.js';
 
-async def main():
-    client = DeribitClient()
+async function main() {
+    const client = new DeribitClient();
 
-    # Get options chain as CSV
-    csv = await client.get_options_chain(
-        currency="ETH_USDC",
-        expiry="9OCT25",
-        min_strike=4000,
-        max_strike=5000
-    )
+    // Get options chain as CSV
+    const csv = await client.getOptionsChain(
+        "USDC",      // Settlement currency
+        "31OCT25",   // Expiry
+        4000,        // Min strike
+        5000         // Max strike
+    );
 
-    print(csv)
-    # # Currency: ETH_USDC
-    # # Expiry: 9OCT25
-    # strike,type,mark_price,delta,gamma,...
-    # 4000,call,495.42,0.99,0.0001,...
-    # ...
+    console.log(csv);
+    // # Currency: USDC
+    // # Expiry: 31OCT25
+    // strike,type,mark_price,delta,gamma,...
+    // 4000,call,495.42,0.99,0.0001,...
+    // ...
 
-    await client.close()
+    await client.close();
+}
 ```
 
 ## References

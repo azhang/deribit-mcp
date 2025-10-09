@@ -1,0 +1,11 @@
+name = "deribit-mcp"
+main = "src/index.js"
+compatibility_date = "2025-10-09"
+
+# Node.js compatibility for WebSocket and other Node APIs
+node_compat = true
+
+[env.production]
+
+[env.preview]
+name = "deribit-mcp-preview"
