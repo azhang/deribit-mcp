@@ -15,12 +15,21 @@ This MCP server exposes the following tools for accessing Deribit market data:
 - **getLastTrades** - Fetch recent trade history
 - **getCurrencies** - Get all available currencies
 - **getExpirations** - Get available expiration dates for instruments
+- **getFundingRate** - Get current funding rate for perpetual contracts
+- **getTradingviewChartData** - Get OHLCV chart data
 
 ### Multi-Instrument Tools (Batch Queries)
 - **getTickers** - Get ticker data for multiple instruments (single WebSocket) ⚡
 - **getOrderBooks** - Get order books for multiple instruments (parallel)
 - **getIndexPrices** - Get index prices for multiple indices (parallel)
 - **getOptionsChains** - Get options chains for multiple expiries (single WebSocket) ⚡
+
+### Volatility & Analytics
+- **getVolatilityIndexData** - Get DVOL volatility index data
+- **getHistoricalVolatility** - Get historical volatility calculations
+- **getCombos** - Get combo instruments (multi-leg strategies)
+- **getBookSummaryByCurrency** - Summary of all instruments for a currency
+- **getDeliveryPrices** - Historical delivery/settlement prices
 
 ### Architecture
 
@@ -419,6 +428,122 @@ Get options chains for multiple expiries using a single WebSocket connection. Ex
 ```
 
 **Output:** Text with CSV data for each expiry, separated by headers.
+
+### getVolatilityIndexData
+Get the current Deribit Volatility Index (DVOL) data, which represents the 30-day implied volatility.
+
+**Parameters:**
+- `currency` (required): Currency symbol (e.g., "BTC", "ETH")
+
+**Example:**
+```json
+{
+  "currency": "BTC"
+}
+```
+
+**Output:** JSON object with DVOL level, changes, and timestamp.
+
+### getHistoricalVolatility
+Get historical realized volatility data for a currency.
+
+**Parameters:**
+- `currency` (required): Currency symbol (e.g., "BTC", "ETH")
+
+**Example:**
+```json
+{
+  "currency": "ETH"
+}
+```
+
+**Output:** JSON array with historical volatility calculations at different time periods.
+
+### getCombos
+Get available combo instruments (multi-leg strategies like spreads, straddles, etc.).
+
+**Parameters:**
+- `currency` (required): Currency symbol (e.g., "BTC", "ETH")
+
+**Example:**
+```json
+{
+  "currency": "BTC"
+}
+```
+
+**Output:** JSON array of combo instruments with their components and properties.
+
+### getFundingRate
+Get the current and predicted funding rates for perpetual contracts.
+
+**Parameters:**
+- `instrumentName` (required): The perpetual instrument name (e.g., "BTC-PERPETUAL")
+
+**Example:**
+```json
+{
+  "instrumentName": "ETH-PERPETUAL"
+}
+```
+
+**Output:** JSON object with current funding rate, predicted rate, and funding timestamps.
+
+### getDeliveryPrices
+Get historical delivery/settlement prices for futures and options.
+
+**Parameters:**
+- `indexName` (required): Index name (e.g., "btc_usd", "eth_usd")
+- `offset` (optional): Offset for pagination
+- `count` (optional): Number of results to return
+
+**Example:**
+```json
+{
+  "indexName": "btc_usd",
+  "count": 10
+}
+```
+
+**Output:** JSON object with historical delivery prices and dates.
+
+### getBookSummaryByCurrency
+Get a summary of all instruments for a currency, including best bid/ask, 24h volume, and more.
+
+**Parameters:**
+- `currency` (required): Currency symbol (e.g., "BTC", "ETH")
+- `kind` (optional): Instrument kind filter ("future", "option", "spot")
+
+**Example:**
+```json
+{
+  "currency": "BTC",
+  "kind": "future"
+}
+```
+
+**Output:** JSON array with summary data for all matching instruments.
+
+### getTradingviewChartData
+Get TradingView-compatible OHLCV (candlestick) chart data.
+
+**Parameters:**
+- `instrumentName` (required): The instrument name
+- `resolution` (required): Chart resolution - one of: 1, 3, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1D
+- `startTimestamp` (required): Start time in UNIX milliseconds
+- `endTimestamp` (required): End time in UNIX milliseconds
+
+**Example:**
+```json
+{
+  "instrumentName": "BTC-PERPETUAL",
+  "resolution": "60",
+  "startTimestamp": 1704067200000,
+  "endTimestamp": 1704153600000
+}
+```
+
+**Output:** JSON object with OHLCV data arrays (open, high, low, close, volume, timestamps).
 
 ## Development
 
