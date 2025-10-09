@@ -1,15 +1,11 @@
 name = "deribit-mcp"
-main = "src/worker.py"
+main = "src/index.js"
 compatibility_date = "2025-10-09"
-compatibility_flags = ["python_workers"]
 
-# Python Worker configuration
-[build]
-command = ""
+# Node.js compatibility for WebSocket and other Node APIs
+node_compat = true
 
 [env.production]
-vars = { MCP_TRANSPORT = "http", MCP_HOST = "0.0.0.0", MCP_PORT = "8787" }
 
 [env.preview]
 name = "deribit-mcp-preview"
-vars = { MCP_TRANSPORT = "http", MCP_HOST = "0.0.0.0", MCP_PORT = "8787" }

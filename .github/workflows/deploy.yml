@@ -15,21 +15,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.13'
-
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          node-version: '20'
 
       - name: Install dependencies
-        run: uv sync
+        run: npm install
 
       - name: Run tests
-        run: uv run pytest || true  # Allow tests to fail for now
+        run: npm test || true  # Allow tests to fail for now
 
   deploy:
     runs-on: ubuntu-latest
