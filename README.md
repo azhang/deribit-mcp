@@ -111,12 +111,13 @@ The remote mode connects to an MCP server running on Cloudflare Workers via HTTP
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://deribit-mcp.<your-subdomain>.workers.dev/sse"
+        "https://deribit.mcp.x.zip/sse"
       ]
     }
   }
 }
 ```
+or `"https://deribit-mcp.<your-subdomain>.workers.dev/sse"`
 
 3. Replace `<your-subdomain>` with your Cloudflare Workers subdomain
 4. Restart Claude Desktop
