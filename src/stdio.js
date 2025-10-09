@@ -25,26 +25,26 @@ function getClient() {
 // Tool definitions
 const TOOLS = [
   {
-    name: 'getTicker',
+    name: 'get_ticker',
     description: 'Get current ticker information for a Deribit instrument. Returns prices, volume, bid/ask spreads, and other market data.',
     inputSchema: {
       type: 'object',
       properties: {
-        instrumentName: {
+        instrument_name: {
           type: 'string',
           description: "The instrument name (e.g., 'BTC-PERPETUAL', 'ETH-25OCT24-3000-C')"
         }
       },
-      required: ['instrumentName']
+      required: ['instrument_name']
     }
   },
   {
-    name: 'getOrderBook',
+    name: 'get_order_book',
     description: 'Get the current order book for a Deribit instrument. Shows bids and asks at different price levels.',
     inputSchema: {
       type: 'object',
       properties: {
-        instrumentName: {
+        instrument_name: {
           type: 'string',
           description: "The instrument name (e.g., 'BTC-PERPETUAL')"
         },
@@ -53,11 +53,11 @@ const TOOLS = [
           description: 'Order book depth (optional, varies by instrument type)'
         }
       },
-      required: ['instrumentName']
+      required: ['instrument_name']
     }
   },
   {
-    name: 'getInstruments',
+    name: 'get_instruments',
     description: 'Get a list of available trading instruments for a specific currency. Can filter by instrument kind (future, option, spot, etc.). Returns CSV format.',
     inputSchema: {
       type: 'object',
@@ -80,12 +80,12 @@ const TOOLS = [
     }
   },
   {
-    name: 'getLastTrades',
+    name: 'get_last_trades',
     description: 'Get recent trade history for a Deribit instrument. Includes trade prices, sizes, and timestamps.',
     inputSchema: {
       type: 'object',
       properties: {
-        instrumentName: {
+        instrument_name: {
           type: 'string',
           description: "The instrument name (e.g., 'BTC-PERPETUAL')"
         },
@@ -93,16 +93,16 @@ const TOOLS = [
           type: 'number',
           description: 'Number of trades to retrieve (default: 10, max: 1000)'
         },
-        includeOld: {
+        include_old: {
           type: 'boolean',
           description: 'Include old trades (default: false)'
         }
       },
-      required: ['instrumentName']
+      required: ['instrument_name']
     }
   },
   {
-    name: 'getCurrencies',
+    name: 'get_currencies',
     description: 'Get a list of all available currencies on Deribit. Includes their properties and trading information.',
     inputSchema: {
       type: 'object',
@@ -110,21 +110,21 @@ const TOOLS = [
     }
   },
   {
-    name: 'getIndexPrice',
+    name: 'get_index_price',
     description: 'Get the current index price for a currency pair. The index price is calculated from multiple exchanges.',
     inputSchema: {
       type: 'object',
       properties: {
-        indexName: {
+        index_name: {
           type: 'string',
           description: "Index name (e.g., 'btc_usd', 'eth_usd', 'sol_usd')"
         }
       },
-      required: ['indexName']
+      required: ['index_name']
     }
   },
   {
-    name: 'getExpirations',
+    name: 'get_expirations',
     description: 'Get available expiration dates for instruments. Much more efficient than calling getInstruments to find expirations. Returns CSV format.',
     inputSchema: {
       type: 'object',
@@ -138,7 +138,7 @@ const TOOLS = [
           enum: ['future', 'option', 'any'],
           description: 'Instrument kind'
         },
-        currencyPair: {
+        currency_pair: {
           type: 'string',
           description: "Optional currency pair filter (e.g., 'eth_usdc', 'btc_usd', 'sol_usdc')"
         }
@@ -147,7 +147,7 @@ const TOOLS = [
     }
   },
   {
-    name: 'getOptionsChain',
+    name: 'get_options_chain',
     description: 'Get complete options chain for a specific expiry with real-time greeks. Returns data in CSV format for easy table viewing. Uses WebSocket for efficient real-time data. Includes prices, volumes, open interest, delta, gamma, vega, theta, rho, and IV.',
     inputSchema: {
       type: 'object',
@@ -160,11 +160,11 @@ const TOOLS = [
           type: 'string',
           description: "Expiry date in format like '9OCT25', '27MAR25', or 'DDMMMYY'"
         },
-        minStrike: {
+        min_strike: {
           type: 'number',
           description: 'Optional minimum strike price to filter results'
         },
-        maxStrike: {
+        max_strike: {
           type: 'number',
           description: 'Optional maximum strike price to filter results'
         }
@@ -182,53 +182,53 @@ async function handleToolCall(name, args) {
 
   try {
     switch (name) {
-      case 'getTicker':
-        return JSON.stringify(await client.getTicker(args.instrumentName), null, 2);
+      case 'get_ticker':
+        return JSON.stringify(await client.getTicker(args.instrument_name), null, 2);
 
-      case 'getOrderBook':
+      case 'get_order_book':
         return JSON.stringify(
-          await client.getOrderBook(args.instrumentName, args.depth || null),
+          await client.getOrderBook(args.instrument_name, args.depth || null),
           null,
           2
         );
 
-      case 'getInstruments':
+      case 'get_instruments':
         return await client.getInstruments(
           args.currency,
           args.kind || null,
           args.expired || false
         );
 
-      case 'getLastTrades':
+      case 'get_last_trades':
         return JSON.stringify(
           await client.getLastTradesByInstrument(
-            args.instrumentName,
+            args.instrument_name,
             args.count || null,
-            args.includeOld || false
+            args.include_old || false
           ),
           null,
           2
         );
 
-      case 'getCurrencies':
+      case 'get_currencies':
         return JSON.stringify(await client.getCurrencies(), null, 2);
 
-      case 'getIndexPrice':
-        return JSON.stringify(await client.getIndexPrice(args.indexName), null, 2);
+      case 'get_index_price':
+        return JSON.stringify(await client.getIndexPrice(args.index_name), null, 2);
 
-      case 'getExpirations':
+      case 'get_expirations':
         return await client.getExpirations(
           args.currency,
           args.kind,
-          args.currencyPair || null
+          args.currency_pair || null
         );
 
-      case 'getOptionsChain':
+      case 'get_options_chain':
         return await client.getOptionsChain(
           args.currency,
           args.expiry,
-          args.minStrike || null,
-          args.maxStrike || null
+          args.min_strike || null,
+          args.max_strike || null
         );
 
       default:

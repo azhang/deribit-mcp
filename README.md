@@ -34,10 +34,12 @@ npm install
 ## Usage
 
 The server supports two modes:
-- **stdio** - For local use with Claude Desktop/Code
+- **stdio** - For local use with any MCP client
 - **Cloudflare Workers** - For remote deployment with global edge network
 
-### Claude Desktop (Local stdio mode)
+### Local stdio mode
+
+The stdio mode runs the MCP server as a local process that Claude Desktop spawns and communicates with directly via stdin/stdout. This is the simplest way to use the server locally.
 
 1. Open Claude Desktop settings and click "Edit Config" or manually edit:
    - **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -60,7 +62,45 @@ The server supports two modes:
 3. Replace `/absolute/path/to/deribit-mcp` with the actual path to this project
 4. Restart Claude Desktop
 
-### Claude Desktop (Remote via Cloudflare Workers)
+**Example with absolute path:**
+```json
+{
+  "mcpServers": {
+    "deribit": {
+      "command": "node",
+      "args": [
+        "/Users/yourname/projects/deribit-mcp/src/stdio.js"
+      ]
+    }
+  }
+}
+```
+
+### Remote via Cloudflare Workers
+
+The remote mode connects to an MCP server running on Cloudflare Workers via HTTP/SSE. This allows you to access the server from anywhere and share it across multiple clients.
+
+**For local development:**
+
+1. Start the dev server: `npm run dev`
+2. Edit your Claude Desktop config:
+```json
+{
+  "mcpServers": {
+    "deribit-remote": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8787/sse"
+      ]
+    }
+  }
+}
+```
+
+3. Restart Claude Desktop
+
+**For production deployment:**
 
 1. Deploy to Cloudflare Workers (see Deployment section below)
 2. Edit your Claude Desktop config:
@@ -70,8 +110,8 @@ The server supports two modes:
     "deribit-remote": {
       "command": "npx",
       "args": [
-        "workers-mcp",
-        "https://deribit-mcp.<your-subdomain>.workers.dev"
+        "mcp-remote",
+        "https://deribit-mcp.<your-subdomain>.workers.dev/sse"
       ]
     }
   }
@@ -100,6 +140,11 @@ npm run dev
 ```
 
 Server will be available at `http://localhost:8787`
+
+To connect from Claude Desktop, use the `/sse` endpoint:
+```
+http://localhost:8787/sse
+```
 
 ### Cloudflare Workers
 
@@ -320,9 +365,16 @@ https://docs.deribit.com/
 ## Architecture
 
 - **Runtime**: Node.js 18+ (local), Cloudflare Workers (production)
-- **Transport**: stdio (local) / HTTP via workers-mcp (production)
+- **Transport**:
+  - stdio (local with any MCP client)
+  - SSE (Server-Sent Events) for remote MCP via `mcp-remote` client
+  - Uses Cloudflare Durable Objects with `McpAgent` class from `agents` package
 - **API Protocol**: JSON-RPC 2.0 over HTTP (REST) and WebSocket to Deribit
 - **Data Format**: JSON (most tools) and CSV (instruments, expirations, options chain)
+- **Packages**:
+  - `@modelcontextprotocol/sdk` - MCP protocol implementation
+  - `agents` - Cloudflare's Agents SDK with McpAgent
+  - `zod` - Schema validation
 
 ## License
 
