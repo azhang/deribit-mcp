@@ -200,6 +200,145 @@ export class DeribitClient {
   }
 
   /**
+   * Get ticker information for multiple instruments using a single WebSocket connection.
+   *
+   * @param {Array<string>} instrumentNames - Array of instrument names
+   * @returns {Promise<Object>} Dictionary mapping instrument name to ticker data
+   */
+  async getTickers(instrumentNames) {
+    // Connect WebSocket if not already connected
+    if (this.wsClient === null) {
+      let wsUrl = this.baseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+      if (!wsUrl.endsWith('/ws/api/v2')) {
+        wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
+      }
+
+      this.wsClient = new WebSocketClient(wsUrl);
+      await this.wsClient.connect();
+    }
+
+    // Subscribe and get ticker snapshots
+    return await this.wsClient.getTickerSnapshots(instrumentNames);
+  }
+
+  /**
+   * Get index prices for multiple indices using a single WebSocket connection.
+   *
+   * @param {Array<string>} indexNames - Array of index names (e.g., ["btc_usd", "eth_usd"])
+   * @returns {Promise<Object>} Dictionary mapping index name to price data
+   */
+  async getIndexPrices(indexNames) {
+    const results = {};
+
+    // Make parallel HTTP requests for each index
+    await Promise.all(
+      indexNames.map(async (indexName) => {
+        try {
+          results[indexName] = await this.getIndexPrice(indexName);
+        } catch (error) {
+          results[indexName] = { error: error.message };
+        }
+      })
+    );
+
+    return results;
+  }
+
+  /**
+   * Get order books for multiple instruments.
+   *
+   * @param {Array<string>} instrumentNames - Array of instrument names
+   * @param {number} [depth] - Optional order book depth
+   * @returns {Promise<Object>} Dictionary mapping instrument name to order book data
+   */
+  async getOrderBooks(instrumentNames, depth = null) {
+    const results = {};
+
+    // Make parallel HTTP requests for each instrument
+    await Promise.all(
+      instrumentNames.map(async (instrumentName) => {
+        try {
+          results[instrumentName] = await this.getOrderBook(instrumentName, depth);
+        } catch (error) {
+          results[instrumentName] = { error: error.message };
+        }
+      })
+    );
+
+    return results;
+  }
+
+  /**
+   * Get options chains for multiple expiries using a single WebSocket connection.
+   *
+   * @param {string} currency - Currency symbol
+   * @param {Array<string>} expiries - Array of expiry dates (e.g., ["9OCT25", "16OCT25"])
+   * @param {number} [minStrike] - Optional minimum strike filter
+   * @param {number} [maxStrike] - Optional maximum strike filter
+   * @returns {Promise<Object>} Dictionary mapping expiry to CSV string
+   */
+  async getOptionsChains(currency, expiries, minStrike = null, maxStrike = null) {
+    // Step 1: Get all option instruments for this currency (HTTP)
+    const instruments = await this._getInstrumentsRaw(currency, 'option', false);
+
+    // Step 2: Filter instruments by all expiry dates and collect all instrument names
+    const allInstrumentNames = [];
+    const expiryToInstruments = {};
+
+    for (const expiry of expiries) {
+      const instrumentNames = filterInstrumentsByExpiry(instruments, expiry);
+      expiryToInstruments[expiry] = instrumentNames;
+      allInstrumentNames.push(...instrumentNames);
+    }
+
+    if (allInstrumentNames.length === 0) {
+      const results = {};
+      for (const expiry of expiries) {
+        results[expiry] = `# No instruments found for ${currency} expiry ${expiry}\n`;
+      }
+      return results;
+    }
+
+    // Step 3: Connect WebSocket if not already connected
+    if (this.wsClient === null) {
+      let wsUrl = this.baseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+      if (!wsUrl.endsWith('/ws/api/v2')) {
+        wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
+      }
+
+      this.wsClient = new WebSocketClient(wsUrl);
+      await this.wsClient.connect();
+    }
+
+    // Step 4: Subscribe and get ticker snapshots for ALL instruments at once (WebSocket)
+    const allTickerData = await this.wsClient.getTickerSnapshots(allInstrumentNames);
+
+    // Step 5: Build CSV for each expiry from the combined ticker data
+    const results = {};
+    for (const expiry of expiries) {
+      const instrumentNames = expiryToInstruments[expiry];
+
+      // Filter ticker data for this expiry
+      const tickerData = {};
+      for (const name of instrumentNames) {
+        if (allTickerData[name]) {
+          tickerData[name] = allTickerData[name];
+        }
+      }
+
+      results[expiry] = buildOptionsChainCSV(
+        tickerData,
+        currency,
+        expiry,
+        minStrike,
+        maxStrike
+      );
+    }
+
+    return results;
+  }
+
+  /**
    * Get available expiration dates for instruments.
    *
    * @param {string} currency - Currency symbol

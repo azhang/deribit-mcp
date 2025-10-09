@@ -15,7 +15,7 @@ import { DeribitClient } from './deribit.js';
 export class DeribitMCP extends McpAgent {
   server = new McpServer({
     name: "Deribit Market Data",
-    version: "0.2.0",
+    version: "0.3.0",
   });
 
   #client = null;
@@ -211,6 +211,104 @@ export class DeribitMCP extends McpAgent {
           );
           return {
             content: [{ type: "text", text: result }],
+          };
+        } catch (error) {
+          return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    // Get ticker information for multiple instruments using a single WebSocket connection
+    this.server.tool(
+      "get_tickers",
+      {
+        instrument_names: z.array(z.string()).describe("Array of instrument names (e.g., ['BTC-PERPETUAL', 'ETH-PERPETUAL'])"),
+      },
+      async ({ instrument_names }) => {
+        try {
+          const result = await this.getClient().getTickers(instrument_names);
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          };
+        } catch (error) {
+          return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    // Get index prices for multiple indices
+    this.server.tool(
+      "get_index_prices",
+      {
+        index_names: z.array(z.string()).describe("Array of index names (e.g., ['btc_usd', 'eth_usd'])"),
+      },
+      async ({ index_names }) => {
+        try {
+          const result = await this.getClient().getIndexPrices(index_names);
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          };
+        } catch (error) {
+          return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    // Get order books for multiple instruments
+    this.server.tool(
+      "get_order_books",
+      {
+        instrument_names: z.array(z.string()).describe("Array of instrument names"),
+        depth: z.number().optional().describe("Order book depth (optional)"),
+      },
+      async ({ instrument_names, depth }) => {
+        try {
+          const result = await this.getClient().getOrderBooks(instrument_names, depth || null);
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          };
+        } catch (error) {
+          return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    // Get options chains for multiple expiries using a single WebSocket connection
+    this.server.tool(
+      "get_options_chains",
+      {
+        currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
+        expiries: z.array(z.string()).describe("Array of expiry dates in format like '9OCT25' or '29MAR24'"),
+        min_strike: z.number().optional().describe("Minimum strike price filter (optional)"),
+        max_strike: z.number().optional().describe("Maximum strike price filter (optional)"),
+      },
+      async ({ currency, expiries, min_strike, max_strike }) => {
+        try {
+          const result = await this.getClient().getOptionsChains(
+            currency,
+            expiries,
+            min_strike || null,
+            max_strike || null
+          );
+          // Format result with clear separators between expiries
+          let output = '';
+          for (const [expiry, csv] of Object.entries(result)) {
+            output += `\n=== ${expiry} ===\n${csv}\n`;
+          }
+          return {
+            content: [{ type: "text", text: output }],
           };
         } catch (error) {
           return {
