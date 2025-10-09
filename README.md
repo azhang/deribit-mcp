@@ -6,13 +6,14 @@ An MCP (Model Context Protocol) server that provides access to Deribit's public 
 
 This MCP server exposes the following tools for accessing Deribit market data:
 
-- **get_options_chain** - Get complete options chain with real-time greeks (WebSocket) ⚡
-- **get_ticker** - Get current ticker information (prices, volume, bid/ask spreads)
-- **get_order_book** - Retrieve order book with bids and asks
-- **get_instruments** - List available trading instruments
-- **get_last_trades** - Fetch recent trade history
-- **get_currencies** - Get all available currencies
-- **get_index_price** - Get current index price for a currency
+- **getOptionsChain** - Get complete options chain with real-time greeks (WebSocket) ⚡
+- **getTicker** - Get current ticker information (prices, volume, bid/ask spreads)
+- **getOrderBook** - Retrieve order book with bids and asks
+- **getInstruments** - List available trading instruments
+- **getLastTrades** - Fetch recent trade history
+- **getCurrencies** - Get all available currencies
+- **getIndexPrice** - Get current index price for a currency
+- **getExpirations** - Get available expiration dates for instruments
 
 ### Architecture
 
@@ -26,19 +27,17 @@ This server uses a **hybrid HTTP + WebSocket approach**:
 # Clone the repository
 cd deribit-mcp
 
-# Install with uv
-uv sync
+# Install dependencies
+npm install
 ```
 
 ## Usage
 
-The server supports two transport modes:
-- **stdio** (default) - For local use with Claude Desktop/Code
-- **HTTP** (Streamable HTTP) - For remote deployment and web access
+The server supports two modes:
+- **stdio** - For local use with Claude Desktop/Code
+- **Cloudflare Workers** - For remote deployment with global edge network
 
-### Claude Desktop
-
-**Local Server (stdio):**
+### Claude Desktop (Local stdio mode)
 
 1. Open Claude Desktop settings and click "Edit Config" or manually edit:
    - **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -49,12 +48,9 @@ The server supports two transport modes:
 {
   "mcpServers": {
     "deribit": {
-      "command": "uv",
+      "command": "node",
       "args": [
-        "--directory",
-        "/absolute/path/to/deribit-mcp",
-        "run",
-        "deribit-mcp"
+        "/absolute/path/to/deribit-mcp/src/stdio.js"
       ]
     }
   }
@@ -64,9 +60,9 @@ The server supports two transport modes:
 3. Replace `/absolute/path/to/deribit-mcp` with the actual path to this project
 4. Restart Claude Desktop
 
-**Remote Server (HTTP):**
+### Claude Desktop (Remote via Cloudflare Workers)
 
-1. Deploy your server (see Deployment section below)
+1. Deploy to Cloudflare Workers (see Deployment section below)
 2. Edit your Claude Desktop config:
 ```json
 {
@@ -74,132 +70,84 @@ The server supports two transport modes:
     "deribit-remote": {
       "command": "npx",
       "args": [
-        "mcp-remote",
-        "https://your-server.com/mcp"
+        "workers-mcp",
+        "https://deribit-mcp.<your-subdomain>.workers.dev"
       ]
     }
   }
 }
 ```
 
-3. Replace `https://your-server.com/mcp` with your deployed server URL
+3. Replace `<your-subdomain>` with your Cloudflare Workers subdomain
 4. Restart Claude Desktop
-
-### Claude Code
-
-**Local Server (stdio):**
-```bash
-claude mcp add deribit \
-    -- uv --directory /absolute/path/to/deribit-mcp run deribit-mcp
-```
-
-Replace `/absolute/path/to/deribit-mcp` with the actual path to this project.
-
-**Remote Server (HTTP):**
-```bash
-# For Cloudflare Workers deployment:
-claude mcp add deribit-remote \
-    -- npx mcp-remote https://deribit-mcp.<your-subdomain>.workers.dev
-
-# For other deployments:
-claude mcp add deribit-remote \
-    -- npx mcp-remote https://your-server.com/mcp
-```
-
-Replace the URL with your deployed server URL.
 
 ## Deployment
 
-### Local Testing (HTTP mode)
+### Local Testing (stdio mode)
 
-Run the server locally with HTTP transport:
-
-```bash
-MCP_TRANSPORT=http MCP_HOST=0.0.0.0 MCP_PORT=8000 uv run deribit-mcp
-```
-
-Server will be available at `http://localhost:8000/mcp/`
-
-**Environment Variables:**
-- `MCP_TRANSPORT` - Transport type: `stdio` (default) or `http`
-- `MCP_HOST` - HTTP host (default: `0.0.0.0`)
-- `MCP_PORT` - HTTP port (default: `8000`)
-
-### Docker
-
-Build and run using the included `Dockerfile`:
+Run the stdio server locally for testing:
 
 ```bash
-# Build
-docker build -t deribit-mcp .
-
-# Run
-docker run -p 8000:8000 deribit-mcp
+npm run stdio
 ```
 
-Or use Docker Compose:
+### Local Testing (Workers dev mode)
 
-```yaml
-version: '3.8'
-services:
-  deribit-mcp:
-    build: .
-    ports:
-      - "8000:8000"
+Run the Cloudflare Workers development server:
+
+```bash
+npm run dev
 ```
+
+Server will be available at `http://localhost:8787`
 
 ### Cloudflare Workers
 
 Deploy to Cloudflare for global edge deployment with automatic CI/CD via GitHub Actions.
 
-**Setup (one-time):**
+**Required Secrets (one-time setup):**
 
-1. Get your Cloudflare API token:
+1. Get your Cloudflare credentials:
    - Go to [Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens)
-   - Create token with "Edit Workers" permissions
-   - Copy your Account ID from the dashboard
+   - Click "Create Token" → Use "Edit Cloudflare Workers" template
+   - Copy your API token
+   - Find your Account ID in the Workers dashboard URL or sidebar
 
 2. Add secrets to your GitHub repository:
    - Go to Settings → Secrets and variables → Actions
-   - Add `CLOUDFLARE_API_TOKEN` - Your API token
-   - Add `CLOUDFLARE_ACCOUNT_ID` - Your account ID
+   - Add **`CLOUDFLARE_API_TOKEN`** - Your API token from step 1
+   - Add **`CLOUDFLARE_ACCOUNT_ID`** - Your Account ID from step 1
 
 3. Deploy:
    ```bash
-   git push origin main  # Automatic deployment via GitHub Actions
+   # Automatic deployment via GitHub Actions on push to main
+   git push origin main
+
+   # Or manual deployment
+   npm run deploy
    ```
 
-**Manual deployment:**
-```bash
-npx wrangler deploy
-```
-
-Your server will be available at: `https://deribit-mcp.<your-subdomain>.workers.dev/`
+**How it works:**
+- Pushes to `main` branch automatically deploy to production
+- Pull requests automatically create preview deployments
+- Your server will be available at: `https://deribit-mcp.<your-subdomain>.workers.dev`
 
 **Configuration:**
 - Edit `wrangler.toml` to customize your deployment
-- Pull requests automatically create preview deployments
-- Main branch pushes deploy to production
+- See `.github/workflows/deploy.yml` for CI/CD pipeline
 
 ### With MCP Inspector
 
+For interactive debugging and testing:
+
 **stdio mode:**
 ```bash
-npx @modelcontextprotocol/inspector uv --directory /path/to/deribit-mcp run deribit-mcp
-```
-
-**HTTP mode:**
-```bash
-# Start server in one terminal
-MCP_TRANSPORT=http uv run deribit-mcp
-
-# In another terminal, connect inspector
-npx @modelcontextprotocol/inspector http://localhost:8000/mcp/
+npx @modelcontextprotocol/inspector node src/stdio.js
 ```
 
 ## Available Tools
 
-### get_options_chain ⚡
+### getOptionsChain ⚡
 
 Get complete options chain for a specific expiry with real-time greeks, prices, volumes, and open interest. Returns data in CSV format for easy table viewing.
 
@@ -211,8 +159,8 @@ Get complete options chain for a specific expiry with real-time greeks, prices, 
   - Use `"BTC"` for BTC-settled options (ETH, SOL, etc.)
   - Use `"ETH"` for ETH-settled options
 - `expiry` (required): Expiry date in format "9OCT25", "27MAR25", or "DDMMMYY"
-- `min_strike` (optional): Minimum strike price filter
-- `max_strike` (optional): Maximum strike price filter
+- `minStrike` (optional): Minimum strike price filter
+- `maxStrike` (optional): Maximum strike price filter
 
 **Examples:**
 
@@ -220,9 +168,9 @@ For USDC-settled ETH options (ETH_USDC):
 ```json
 {
   "currency": "USDC",
-  "expiry": "9OCT25",
-  "min_strike": 4000,
-  "max_strike": 5000
+  "expiry": "31OCT25",
+  "minStrike": 4000,
+  "maxStrike": 5000
 }
 ```
 
@@ -230,20 +178,20 @@ For BTC-settled ETH options (ETH):
 ```json
 {
   "currency": "BTC",
-  "expiry": "27MAR25"
+  "expiry": "27MAR26"
 }
 ```
 
 **Output Format (CSV):**
 ```csv
 # Currency: USDC
-# Expiry: 9OCT25
+# Expiry: 31OCT25
 # Timestamp: 1759922575385
 # Underlying: 4494.76
 # Index: 4495.25
 strike,type,instrument_name,mark_price,bid_price,ask_price,bid_amount,ask_amount,last_price,volume_24h,open_interest,delta,gamma,vega,theta,rho,mark_iv,bid_iv,ask_iv
-4000,call,ETH_USDC-9OCT25-4000-C,495.42,494.0,497.0,75.0,50.0,495.0,23.4,102.5,0.9901,0.0001,0.02,-0.85,0.012,45.2,44.8,46.1
-4000,put,ETH_USDC-9OCT25-4000-P,0.18,0.1,0.3,100.0,80.0,0.2,10.5,45.0,-0.0099,0.0001,0.02,-0.05,-0.001,45.2,44.5,46.5
+4000,call,ETH_USDC-31OCT25-4000-C,495.42,494.0,497.0,75.0,50.0,495.0,23.4,102.5,0.9901,0.0001,0.02,-0.85,0.012,45.2,44.8,46.1
+4000,put,ETH_USDC-31OCT25-4000-P,0.18,0.1,0.3,100.0,80.0,0.2,10.5,45.0,-0.0099,0.0001,0.02,-0.05,-0.001,45.2,44.5,46.5
 ...
 ```
 
@@ -254,36 +202,36 @@ strike,type,instrument_name,mark_price,bid_price,ask_price,bid_amount,ask_amount
 4. Waits for initial ticker snapshots with greeks
 5. Returns formatted CSV table
 
-### get_ticker
+### getTicker
 Get real-time ticker information for any Deribit instrument.
 
 **Parameters:**
-- `instrument_name` (required): Instrument name (e.g., "BTC-PERPETUAL", "ETH-25OCT24-3000-C")
+- `instrumentName` (required): Instrument name (e.g., "BTC-PERPETUAL", "ETH-25OCT24-3000-C")
 
 **Example:**
 ```json
 {
-  "instrument_name": "BTC-PERPETUAL"
+  "instrumentName": "BTC-PERPETUAL"
 }
 ```
 
-### get_order_book
+### getOrderBook
 Retrieve the current order book showing bids and asks.
 
 **Parameters:**
-- `instrument_name` (required): Instrument name
+- `instrumentName` (required): Instrument name
 - `depth` (optional): Order book depth
 
 **Example:**
 ```json
 {
-  "instrument_name": "BTC-PERPETUAL",
+  "instrumentName": "BTC-PERPETUAL",
   "depth": 5
 }
 ```
 
-### get_instruments
-List all available trading instruments for a currency.
+### getInstruments
+List all available trading instruments for a currency. Returns CSV format.
 
 **Parameters:**
 - `currency` (required): Currency symbol (e.g., "BTC", "ETH", "SOL")
@@ -298,37 +246,53 @@ List all available trading instruments for a currency.
 }
 ```
 
-### get_last_trades
+### getLastTrades
 Get recent trade history for an instrument.
 
 **Parameters:**
-- `instrument_name` (required): Instrument name
+- `instrumentName` (required): Instrument name
 - `count` (optional): Number of trades (default: 10, max: 1000)
-- `include_old` (optional): Include old trades (default: false)
+- `includeOld` (optional): Include old trades (default: false)
 
 **Example:**
 ```json
 {
-  "instrument_name": "ETH-PERPETUAL",
+  "instrumentName": "ETH-PERPETUAL",
   "count": 50
 }
 ```
 
-### get_currencies
+### getCurrencies
 Get all available currencies with their properties.
 
 **Parameters:** None
 
-### get_index_price
+### getIndexPrice
 Get the current index price calculated from multiple exchanges.
 
 **Parameters:**
-- `index_name` (required): Index name (e.g., "btc_usd", "eth_usd", "sol_usd")
+- `indexName` (required): Index name (e.g., "btc_usd", "eth_usd", "sol_usd")
 
 **Example:**
 ```json
 {
-  "index_name": "btc_usd"
+  "indexName": "btc_usd"
+}
+```
+
+### getExpirations
+Get available expiration dates for instruments. Much more efficient than calling getInstruments to find expirations. Returns CSV format.
+
+**Parameters:**
+- `currency` (required): Currency symbol: BTC, ETH, USDC, USDT, 'any' for all, or 'grouped' for all grouped by currency
+- `kind` (required): Instrument kind: 'future', 'option', or 'any'
+- `currencyPair` (optional): Optional currency pair filter (e.g., 'eth_usdc', 'btc_usd', 'sol_usdc')
+
+**Example:**
+```json
+{
+  "currency": "ETH",
+  "kind": "option"
 }
 ```
 
@@ -336,16 +300,16 @@ Get the current index price calculated from multiple exchanges.
 
 ```bash
 # Install dependencies
-uv sync
+npm install
 
-# Run the server (stdio mode)
-uv run deribit-mcp
+# Run stdio server (for Claude Desktop testing)
+npm run stdio
 
-# Run the server (HTTP mode)
-MCP_TRANSPORT=http uv run deribit-mcp
+# Run Workers dev server (for Cloudflare Workers testing)
+npm run dev
 
-# Run tests
-uv run pytest
+# Deploy to Cloudflare Workers
+npm run deploy
 ```
 
 ## API Reference
@@ -355,9 +319,9 @@ https://docs.deribit.com/
 
 ## Architecture
 
-- **Transport**: Streamable HTTP (stateless) - latest MCP specification (2025-03-26)
-- **API Protocol**: JSON-RPC 2.0 over WebSocket to Deribit
-- **Session Management**: Stateless HTTP for horizontal scaling
+- **Runtime**: Node.js 18+ (local), Cloudflare Workers (production)
+- **Transport**: stdio (local) / HTTP via workers-mcp (production)
+- **API Protocol**: JSON-RPC 2.0 over HTTP (REST) and WebSocket to Deribit
 - **Data Format**: JSON (most tools) and CSV (instruments, expirations, options chain)
 
 ## License
