@@ -89,17 +89,19 @@ The server supports two transport modes:
 
 **Local Server (stdio):**
 ```bash
-# Claude Code will use stdio transport by default when running locally
-# No additional configuration needed if running in the project directory
+claude mcp add deribit \
+    -- uv --directory /absolute/path/to/deribit-mcp run deribit-mcp
 ```
+
+Replace `/absolute/path/to/deribit-mcp` with the actual path to this project.
 
 **Remote Server (HTTP):**
-
-Add the remote server to your MCP configuration:
 ```bash
-# Use the MCP menu in Claude Code to add a remote server
-# Or configure via workspace settings to connect to: https://your-server.com/mcp
+claude mcp add deribit-remote \
+    -- npx mcp-remote https://your-server.com/mcp
 ```
+
+Replace `https://your-server.com/mcp` with your deployed server URL.
 
 ## Deployment
 
