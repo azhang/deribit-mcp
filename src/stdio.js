@@ -178,6 +178,8 @@ const TOOLS = [
 async function handleToolCall(name, args) {
   const client = getClient();
 
+  console.error(`[DEBUG] Tool call: ${name} with args:`, JSON.stringify(args));
+
   try {
     switch (name) {
       case 'getTicker':
@@ -233,6 +235,7 @@ async function handleToolCall(name, args) {
         throw new Error(`Unknown tool: ${name}`);
     }
   } catch (error) {
+    console.error(`[ERROR] ${name} failed:`, error);
     return `Error: ${error.message}`;
   }
 }
