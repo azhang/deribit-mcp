@@ -39,6 +39,8 @@ The server supports two modes:
 
 ### Claude Desktop (Local stdio mode)
 
+The stdio mode runs the MCP server as a local process that Claude Desktop spawns and communicates with directly via stdin/stdout. This is the simplest way to use the server locally.
+
 1. Open Claude Desktop settings and click "Edit Config" or manually edit:
    - **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -60,7 +62,23 @@ The server supports two modes:
 3. Replace `/absolute/path/to/deribit-mcp` with the actual path to this project
 4. Restart Claude Desktop
 
+**Example with absolute path:**
+```json
+{
+  "mcpServers": {
+    "deribit": {
+      "command": "node",
+      "args": [
+        "/Users/yourname/projects/deribit-mcp/src/stdio.js"
+      ]
+    }
+  }
+}
+```
+
 ### Claude Desktop (Remote via Cloudflare Workers)
+
+The remote mode connects to an MCP server running on Cloudflare Workers via HTTP/SSE. This allows you to access the server from anywhere and share it across multiple clients.
 
 **For local development:**
 
@@ -69,7 +87,7 @@ The server supports two modes:
 ```json
 {
   "mcpServers": {
-    "deribit": {
+    "deribit-remote": {
       "command": "npx",
       "args": [
         "mcp-remote",
@@ -102,6 +120,14 @@ The server supports two modes:
 
 3. Replace `<your-subdomain>` with your Cloudflare Workers subdomain
 4. Restart Claude Desktop
+
+**Comparison of stdio vs remote:**
+| Feature | stdio mode | Remote mode |
+|---------|-----------|-------------|
+| Setup | Simpler - just point to local file | Requires running dev server or deployment |
+| Performance | Faster - direct process communication | Slightly slower - HTTP overhead |
+| Sharing | Local only | Can be shared/deployed |
+| Use case | Personal local use | Team use, production deployments |
 
 ## Deployment
 
