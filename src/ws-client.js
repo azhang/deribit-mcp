@@ -32,7 +32,7 @@ export class WebSocketClient {
       return; // Already connected
     }
 
-    console.log(`Connecting to ${this.wsUrl}`);
+    console.error(`Connecting to ${this.wsUrl}`);
     this.ws = new WebSocket(this.wsUrl);
 
     // Wait for connection to open
@@ -53,7 +53,7 @@ export class WebSocketClient {
       client_version: '0.1.0'
     });
 
-    console.log('WebSocket connected and handshake completed');
+    console.error('WebSocket connected and handshake completed');
   }
 
   /**
@@ -63,7 +63,7 @@ export class WebSocketClient {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
-      console.log('WebSocket connection closed');
+      console.error('WebSocket connection closed');
     }
   }
 
@@ -118,11 +118,11 @@ export class WebSocketClient {
 
       if (heartbeatType === 'test_request') {
         // Server is testing if we're alive - MUST respond with public/test
-        console.log('Received test_request heartbeat, responding with public/test');
+        console.error('Received test_request heartbeat, responding with public/test');
         this._call('public/test', {}).catch(err => console.error('Failed to respond to heartbeat:', err));
       } else {
         // Regular heartbeat - no response needed
-        console.log('Received heartbeat from server');
+        console.error('Received heartbeat from server');
       }
       return;
     }
@@ -134,7 +134,7 @@ export class WebSocketClient {
 
       // Store subscription data
       this._subscriptions.set(channel, subscriptionData);
-      console.log(`Received subscription update for ${channel}`);
+      console.error(`Received subscription update for ${channel}`);
       return;
     }
 
@@ -166,9 +166,9 @@ export class WebSocketClient {
   async subscribeTickers(instrumentNames) {
     const channels = instrumentNames.map(name => `incremental_ticker.${name}`);
 
-    console.log(`Subscribing to ${channels.length} ticker channels`);
+    console.error(`Subscribing to ${channels.length} ticker channels`);
     const result = await this._call('public/subscribe', { channels });
-    console.log(`Subscribed to ${result.length} channels`);
+    console.error(`Subscribed to ${result.length} channels`);
   }
 
   /**
@@ -183,7 +183,7 @@ export class WebSocketClient {
     const channels = new Set(instrumentNames.map(name => `incremental_ticker.${name}`));
     const startTime = Date.now();
 
-    console.log(`Waiting for ${channels.size} snapshots...`);
+    console.error(`Waiting for ${channels.size} snapshots...`);
 
     while (true) {
       // Check if we have all snapshots
@@ -197,7 +197,7 @@ export class WebSocketClient {
         for (const name of instrumentNames) {
           result[name] = this._subscriptions.get(`incremental_ticker.${name}`);
         }
-        console.log(`Received all ${Object.keys(result).length} snapshots`);
+        console.error(`Received all ${Object.keys(result).length} snapshots`);
         return result;
       }
 
