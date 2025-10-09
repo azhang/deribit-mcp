@@ -62,6 +62,28 @@ The server supports two modes:
 
 ### Claude Desktop (Remote via Cloudflare Workers)
 
+**For local development:**
+
+1. Start the dev server: `npm run dev`
+2. Edit your Claude Desktop config:
+```json
+{
+  "mcpServers": {
+    "deribit": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8787/sse"
+      ]
+    }
+  }
+}
+```
+
+3. Restart Claude Desktop
+
+**For production deployment:**
+
 1. Deploy to Cloudflare Workers (see Deployment section below)
 2. Edit your Claude Desktop config:
 ```json
@@ -70,8 +92,8 @@ The server supports two modes:
     "deribit-remote": {
       "command": "npx",
       "args": [
-        "workers-mcp",
-        "https://deribit-mcp.<your-subdomain>.workers.dev"
+        "mcp-remote",
+        "https://deribit-mcp.<your-subdomain>.workers.dev/sse"
       ]
     }
   }
@@ -100,6 +122,11 @@ npm run dev
 ```
 
 Server will be available at `http://localhost:8787`
+
+To connect from Claude Desktop, use the `/sse` endpoint:
+```
+http://localhost:8787/sse
+```
 
 ### Cloudflare Workers
 
@@ -320,9 +347,16 @@ https://docs.deribit.com/
 ## Architecture
 
 - **Runtime**: Node.js 18+ (local), Cloudflare Workers (production)
-- **Transport**: stdio (local) / HTTP via workers-mcp (production)
+- **Transport**:
+  - stdio (local with Claude Desktop)
+  - SSE (Server-Sent Events) for remote MCP via `mcp-remote` client
+  - Uses Cloudflare Durable Objects with `McpAgent` class from `agents` package
 - **API Protocol**: JSON-RPC 2.0 over HTTP (REST) and WebSocket to Deribit
 - **Data Format**: JSON (most tools) and CSV (instruments, expirations, options chain)
+- **Packages**:
+  - `@modelcontextprotocol/sdk` - MCP protocol implementation
+  - `agents` - Cloudflare's Agents SDK with McpAgent
+  - `zod` - Schema validation
 
 ## License
 
