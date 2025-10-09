@@ -33,15 +33,18 @@ uv sync
 ## Usage
 
 The server supports two transport modes:
-- **stdio** (default) - For local use with Claude Desktop
+- **stdio** (default) - For local use with Claude Desktop/Code
 - **HTTP** (Streamable HTTP) - For remote deployment and web access
 
-### With Claude Desktop (stdio)
+### Claude Desktop
 
-Add this to your Claude Desktop configuration file:
+**Local Server (stdio):**
 
-**MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+1. Open Claude Desktop settings and click "Edit Config" or manually edit:
+   - **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
+2. Add this configuration:
 ```json
 {
   "mcpServers": {
@@ -58,40 +61,89 @@ Add this to your Claude Desktop configuration file:
 }
 ```
 
-Replace `/absolute/path/to/deribit-mcp` with the actual path to this project.
+3. Replace `/absolute/path/to/deribit-mcp` with the actual path to this project
+4. Restart Claude Desktop
 
-### Remote Deployment (HTTP)
+**Remote Server (HTTP):**
 
-Run the server with HTTP transport for remote access:
+1. Deploy your server (see Deployment section below)
+2. Edit your Claude Desktop config:
+```json
+{
+  "mcpServers": {
+    "deribit-remote": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://your-server.com/mcp"
+      ]
+    }
+  }
+}
+```
+
+3. Replace `https://your-server.com/mcp` with your deployed server URL
+4. Restart Claude Desktop
+
+### Claude Code
+
+**Local Server (stdio):**
+```bash
+# Claude Code will use stdio transport by default when running locally
+# No additional configuration needed if running in the project directory
+```
+
+**Remote Server (HTTP):**
+
+Add the remote server to your MCP configuration:
+```bash
+# Use the MCP menu in Claude Code to add a remote server
+# Or configure via workspace settings to connect to: https://your-server.com/mcp
+```
+
+## Deployment
+
+### Local Testing (HTTP mode)
+
+Run the server locally with HTTP transport:
 
 ```bash
-# Using environment variables
 MCP_TRANSPORT=http MCP_HOST=0.0.0.0 MCP_PORT=8000 uv run deribit-mcp
-
-# Or directly
-uv run deribit-mcp
-# Then in another terminal, set env vars before running
 ```
 
-The server will be available at `http://localhost:8000/mcp/`
-
-**Docker Deployment:**
-
-```dockerfile
-FROM python:3.13-slim
-WORKDIR /app
-COPY . .
-RUN pip install uv && uv sync
-ENV MCP_TRANSPORT=http
-ENV MCP_HOST=0.0.0.0
-ENV MCP_PORT=8000
-CMD ["uv", "run", "deribit-mcp"]
-```
+Server will be available at `http://localhost:8000/mcp/`
 
 **Environment Variables:**
 - `MCP_TRANSPORT` - Transport type: `stdio` (default) or `http`
 - `MCP_HOST` - HTTP host (default: `0.0.0.0`)
 - `MCP_PORT` - HTTP port (default: `8000`)
+
+### Docker
+
+Build and run using the included `Dockerfile`:
+
+```bash
+# Build
+docker build -t deribit-mcp .
+
+# Run
+docker run -p 8000:8000 deribit-mcp
+```
+
+Or use Docker Compose:
+
+```yaml
+version: '3.8'
+services:
+  deribit-mcp:
+    build: .
+    ports:
+      - "8000:8000"
+```
+
+### Cloudflare Workers
+
+Deploy to Cloudflare for global edge deployment. See [Cloudflare MCP Documentation](https://developers.cloudflare.com/agents/model-context-protocol/) for detailed instructions.
 
 ### With MCP Inspector
 
@@ -244,46 +296,6 @@ Get the current index price calculated from multiple exchanges.
 }
 ```
 
-## API Reference
-
-This server uses Deribit's public API v2. For detailed API documentation, visit:
-https://docs.deribit.com/
-
-## Deployment Platforms
-
-This server uses **Streamable HTTP** (MCP specification 2025-03-26), the latest and recommended transport for production deployments.
-
-### Cloudflare Workers (Recommended)
-- First-class support for MCP servers
-- Global edge deployment
-- Built-in WebSocket support
-- [Cloudflare MCP Documentation](https://developers.cloudflare.com/agents/model-context-protocol/)
-
-### AWS Lambda / Fargate
-- Serverless or containerized deployment
-- Use API Gateway for HTTP endpoints
-- Set environment variables in Lambda configuration
-
-### Render / Railway / Fly.io
-- Simple Docker deployment
-- Auto-scaling and load balancing
-- Easy environment variable configuration
-
-### Example Docker Compose
-
-```yaml
-version: '3.8'
-services:
-  deribit-mcp:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - MCP_TRANSPORT=http
-      - MCP_HOST=0.0.0.0
-      - MCP_PORT=8000
-```
-
 ## Development
 
 ```bash
@@ -300,9 +312,14 @@ MCP_TRANSPORT=http uv run deribit-mcp
 uv run pytest
 ```
 
+## API Reference
+
+This server uses Deribit's public API v2. For detailed API documentation, visit:
+https://docs.deribit.com/
+
 ## Architecture
 
-- **Transport**: Streamable HTTP (stateless) - latest MCP specification
+- **Transport**: Streamable HTTP (stateless) - latest MCP specification (2025-03-26)
 - **API Protocol**: JSON-RPC 2.0 over WebSocket to Deribit
 - **Session Management**: Stateless HTTP for horizontal scaling
 - **Data Format**: JSON (most tools) and CSV (instruments, expirations, options chain)
