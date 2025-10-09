@@ -34,10 +34,10 @@ npm install
 ## Usage
 
 The server supports two modes:
-- **stdio** - For local use with Claude Desktop/Code
+- **stdio** - For local use with any MCP client
 - **Cloudflare Workers** - For remote deployment with global edge network
 
-### Claude Desktop (Local stdio mode)
+### Local stdio mode
 
 The stdio mode runs the MCP server as a local process that Claude Desktop spawns and communicates with directly via stdin/stdout. This is the simplest way to use the server locally.
 
@@ -76,7 +76,7 @@ The stdio mode runs the MCP server as a local process that Claude Desktop spawns
 }
 ```
 
-### Claude Desktop (Remote via Cloudflare Workers)
+### Remote via Cloudflare Workers
 
 The remote mode connects to an MCP server running on Cloudflare Workers via HTTP/SSE. This allows you to access the server from anywhere and share it across multiple clients.
 
@@ -120,14 +120,6 @@ The remote mode connects to an MCP server running on Cloudflare Workers via HTTP
 
 3. Replace `<your-subdomain>` with your Cloudflare Workers subdomain
 4. Restart Claude Desktop
-
-**Comparison of stdio vs remote:**
-| Feature | stdio mode | Remote mode |
-|---------|-----------|-------------|
-| Setup | Simpler - just point to local file | Requires running dev server or deployment |
-| Performance | Faster - direct process communication | Slightly slower - HTTP overhead |
-| Sharing | Local only | Can be shared/deployed |
-| Use case | Personal local use | Team use, production deployments |
 
 ## Deployment
 
@@ -374,7 +366,7 @@ https://docs.deribit.com/
 
 - **Runtime**: Node.js 18+ (local), Cloudflare Workers (production)
 - **Transport**:
-  - stdio (local with Claude Desktop)
+  - stdio (local with any MCP client)
   - SSE (Server-Sent Events) for remote MCP via `mcp-remote` client
   - Uses Cloudflare Durable Objects with `McpAgent` class from `agents` package
 - **API Protocol**: JSON-RPC 2.0 over HTTP (REST) and WebSocket to Deribit
