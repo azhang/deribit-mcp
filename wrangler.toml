@@ -1,0 +1,36 @@
+name = "deribit-mcp"
+main = "src/worker.py"
+compatibility_date = "2025-10-09"
+compatibility_flags = ["python_workers"]
+
+# Python Worker configuration
+[build]
+command = ""
+
+[env.production]
+vars = { MCP_TRANSPORT = "http", MCP_HOST = "0.0.0.0", MCP_PORT = "8787" }
+
+[env.preview]
+name = "deribit-mcp-preview"
+vars = { MCP_TRANSPORT = "http", MCP_HOST = "0.0.0.0", MCP_PORT = "8787" }
+
+# Durable Objects for stateful connections (if needed)
+[[durable_objects.bindings]]
+name = "DERIBIT_MCP"
+class_name = "DeribitMCPServer"
+script_name = "deribit-mcp"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["DeribitMCPServer"]
+
+# Allow CORS for MCP clients
+[env.production.cors]
+allowed_origins = ["*"]
+allowed_methods = ["GET", "POST", "OPTIONS"]
+allowed_headers = ["*"]
+
+[env.preview.cors]
+allowed_origins = ["*"]
+allowed_methods = ["GET", "POST", "OPTIONS"]
+allowed_headers = ["*"]

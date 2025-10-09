@@ -97,11 +97,16 @@ Replace `/absolute/path/to/deribit-mcp` with the actual path to this project.
 
 **Remote Server (HTTP):**
 ```bash
+# For Cloudflare Workers deployment:
+claude mcp add deribit-remote \
+    -- npx mcp-remote https://deribit-mcp.<your-subdomain>.workers.dev
+
+# For other deployments:
 claude mcp add deribit-remote \
     -- npx mcp-remote https://your-server.com/mcp
 ```
 
-Replace `https://your-server.com/mcp` with your deployed server URL.
+Replace the URL with your deployed server URL.
 
 ## Deployment
 
@@ -145,7 +150,36 @@ services:
 
 ### Cloudflare Workers
 
-Deploy to Cloudflare for global edge deployment. See [Cloudflare MCP Documentation](https://developers.cloudflare.com/agents/model-context-protocol/) for detailed instructions.
+Deploy to Cloudflare for global edge deployment with automatic CI/CD via GitHub Actions.
+
+**Setup (one-time):**
+
+1. Get your Cloudflare API token:
+   - Go to [Cloudflare Dashboard](https://dash.cloudflare.com/profile/api-tokens)
+   - Create token with "Edit Workers" permissions
+   - Copy your Account ID from the dashboard
+
+2. Add secrets to your GitHub repository:
+   - Go to Settings → Secrets and variables → Actions
+   - Add `CLOUDFLARE_API_TOKEN` - Your API token
+   - Add `CLOUDFLARE_ACCOUNT_ID` - Your account ID
+
+3. Deploy:
+   ```bash
+   git push origin main  # Automatic deployment via GitHub Actions
+   ```
+
+**Manual deployment:**
+```bash
+npx wrangler deploy
+```
+
+Your server will be available at: `https://deribit-mcp.<your-subdomain>.workers.dev/`
+
+**Configuration:**
+- Edit `wrangler.toml` to customize your deployment
+- Pull requests automatically create preview deployments
+- Main branch pushes deploy to production
 
 ### With MCP Inspector
 
