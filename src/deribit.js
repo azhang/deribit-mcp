@@ -472,6 +472,25 @@ export class DeribitClient {
   }
 
   /**
+   * Get historical funding rate data for perpetual contracts.
+   *
+   * @param {string} instrumentName - The instrument name (e.g., "BTC-PERPETUAL")
+   * @param {number} [startTimestamp] - Start timestamp in milliseconds
+   * @param {number} [endTimestamp] - End timestamp in milliseconds
+   * @returns {Promise<Array>} Array of historical funding rate data points
+   */
+  async getFundingRateHistory(instrumentName, startTimestamp = null, endTimestamp = null) {
+    const params = { instrument_name: instrumentName };
+    if (startTimestamp !== null) {
+      params.start_timestamp = startTimestamp;
+    }
+    if (endTimestamp !== null) {
+      params.end_timestamp = endTimestamp;
+    }
+    return await this._call('get_funding_rate_history', params);
+  }
+
+  /**
    * Get historical delivery prices for futures.
    *
    * @param {string} indexName - Index name (e.g., "btc_usd", "eth_usd")
@@ -503,6 +522,16 @@ export class DeribitClient {
       params.kind = kind;
     }
     return await this._call('get_book_summary_by_currency', params);
+  }
+
+  /**
+   * Get detailed book summary for a specific instrument.
+   *
+   * @param {string} instrumentName - The instrument name
+   * @returns {Promise<Object>} Detailed summary including best bid/ask, volume, mark price, etc.
+   */
+  async getBookSummaryByInstrument(instrumentName) {
+    return await this._call('get_book_summary_by_instrument', { instrument_name: instrumentName });
   }
 
   /**

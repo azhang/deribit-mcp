@@ -403,6 +403,33 @@ export class DeribitMCP extends McpAgent {
       }
     );
 
+    // Get historical funding rate data
+    this.server.tool(
+      "get_funding_rate_history",
+      {
+        instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
+        start_timestamp: z.number().optional().describe("Start time (UNIX timestamp in milliseconds)"),
+        end_timestamp: z.number().optional().describe("End time (UNIX timestamp in milliseconds)"),
+      },
+      async ({ instrument_name, start_timestamp, end_timestamp }) => {
+        try {
+          const result = await this.getClient().getFundingRateHistory(
+            instrument_name,
+            start_timestamp || null,
+            end_timestamp || null
+          );
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          };
+        } catch (error) {
+          return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+          };
+        }
+      }
+    );
+
     // Get historical delivery prices
     this.server.tool(
       "get_delivery_prices",
@@ -443,6 +470,27 @@ export class DeribitMCP extends McpAgent {
             currency,
             kind || null
           );
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          };
+        } catch (error) {
+          return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    // Get book summary for a specific instrument
+    this.server.tool(
+      "get_book_summary_by_instrument",
+      {
+        instrument_name: z.string().describe("The instrument name"),
+      },
+      async ({ instrument_name }) => {
+        try {
+          const result = await this.getClient().getBookSummaryByInstrument(instrument_name);
           return {
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
           };

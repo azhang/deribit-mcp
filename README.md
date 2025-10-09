@@ -16,6 +16,8 @@ This MCP server exposes the following tools for accessing Deribit market data:
 - **getCurrencies** - Get all available currencies
 - **getExpirations** - Get available expiration dates for instruments
 - **getFundingRate** - Get current funding rate for perpetual contracts
+- **getFundingRateHistory** - Get historical funding rate data
+- **getBookSummaryByInstrument** - Get detailed summary for a specific instrument
 - **getTradingviewChartData** - Get OHLCV chart data
 
 ### Multi-Instrument Tools (Batch Queries)
@@ -489,6 +491,25 @@ Get the current and predicted funding rates for perpetual contracts.
 
 **Output:** JSON object with current funding rate, predicted rate, and funding timestamps.
 
+### getFundingRateHistory
+Get historical funding rate data for analyzing funding rate trends over time.
+
+**Parameters:**
+- `instrumentName` (required): The perpetual instrument name (e.g., "BTC-PERPETUAL")
+- `startTimestamp` (optional): Start time in UNIX milliseconds
+- `endTimestamp` (optional): End time in UNIX milliseconds
+
+**Example:**
+```json
+{
+  "instrumentName": "BTC-PERPETUAL",
+  "startTimestamp": 1704067200000,
+  "endTimestamp": 1704153600000
+}
+```
+
+**Output:** JSON array with historical funding rate data points including timestamps and rates.
+
 ### getDeliveryPrices
 Get historical delivery/settlement prices for futures and options.
 
@@ -523,6 +544,21 @@ Get a summary of all instruments for a currency, including best bid/ask, 24h vol
 ```
 
 **Output:** JSON array with summary data for all matching instruments.
+
+### getBookSummaryByInstrument
+Get detailed book summary for a specific instrument including best bid/ask, volume, mark price, and more.
+
+**Parameters:**
+- `instrumentName` (required): The instrument name
+
+**Example:**
+```json
+{
+  "instrumentName": "BTC-PERPETUAL"
+}
+```
+
+**Output:** JSON object with detailed summary for the instrument.
 
 ### getTradingviewChartData
 Get TradingView-compatible OHLCV (candlestick) chart data.
