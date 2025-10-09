@@ -8,13 +8,15 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "fastmcp>=2.12.4",
     "httpx>=0.28.1",
     "mcp>=1.16.0",
     "websockets>=15.0.1",
 ]
 
 [project.scripts]
-deribit-mcp = "deribit_mcp:main"
+deribit-mcp = "deribit_mcp.server:run"
+deribit-mcp-http = "deribit_mcp.server:run"
 
 [build-system]
 requires = ["hatchling"]

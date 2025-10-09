@@ -32,7 +32,11 @@ uv sync
 
 ## Usage
 
-### With Claude Desktop
+The server supports two transport modes:
+- **stdio** (default) - For local use with Claude Desktop
+- **HTTP** (Streamable HTTP) - For remote deployment and web access
+
+### With Claude Desktop (stdio)
 
 Add this to your Claude Desktop configuration file:
 
@@ -56,12 +60,53 @@ Add this to your Claude Desktop configuration file:
 
 Replace `/absolute/path/to/deribit-mcp` with the actual path to this project.
 
-### With MCP Inspector
+### Remote Deployment (HTTP)
 
-For testing and debugging:
+Run the server with HTTP transport for remote access:
 
 ```bash
+# Using environment variables
+MCP_TRANSPORT=http MCP_HOST=0.0.0.0 MCP_PORT=8000 uv run deribit-mcp
+
+# Or directly
+uv run deribit-mcp
+# Then in another terminal, set env vars before running
+```
+
+The server will be available at `http://localhost:8000/mcp/`
+
+**Docker Deployment:**
+
+```dockerfile
+FROM python:3.13-slim
+WORKDIR /app
+COPY . .
+RUN pip install uv && uv sync
+ENV MCP_TRANSPORT=http
+ENV MCP_HOST=0.0.0.0
+ENV MCP_PORT=8000
+CMD ["uv", "run", "deribit-mcp"]
+```
+
+**Environment Variables:**
+- `MCP_TRANSPORT` - Transport type: `stdio` (default) or `http`
+- `MCP_HOST` - HTTP host (default: `0.0.0.0`)
+- `MCP_PORT` - HTTP port (default: `8000`)
+
+### With MCP Inspector
+
+**stdio mode:**
+```bash
 npx @modelcontextprotocol/inspector uv --directory /path/to/deribit-mcp run deribit-mcp
+```
+
+**HTTP mode:**
+```bash
+# Start server in one terminal
+MCP_TRANSPORT=http uv run deribit-mcp
+
+# In another terminal, connect inspector
+npx @modelcontextprotocol/inspector http://localhost:8000/mcp/
 ```
 
 ## Available Tools
@@ -204,18 +249,63 @@ Get the current index price calculated from multiple exchanges.
 This server uses Deribit's public API v2. For detailed API documentation, visit:
 https://docs.deribit.com/
 
+## Deployment Platforms
+
+This server uses **Streamable HTTP** (MCP specification 2025-03-26), the latest and recommended transport for production deployments.
+
+### Cloudflare Workers (Recommended)
+- First-class support for MCP servers
+- Global edge deployment
+- Built-in WebSocket support
+- [Cloudflare MCP Documentation](https://developers.cloudflare.com/agents/model-context-protocol/)
+
+### AWS Lambda / Fargate
+- Serverless or containerized deployment
+- Use API Gateway for HTTP endpoints
+- Set environment variables in Lambda configuration
+
+### Render / Railway / Fly.io
+- Simple Docker deployment
+- Auto-scaling and load balancing
+- Easy environment variable configuration
+
+### Example Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  deribit-mcp:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MCP_TRANSPORT=http
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+```
+
 ## Development
 
 ```bash
 # Install dependencies
 uv sync
 
-# Run the server
+# Run the server (stdio mode)
 uv run deribit-mcp
 
-# Run tests (if added)
+# Run the server (HTTP mode)
+MCP_TRANSPORT=http uv run deribit-mcp
+
+# Run tests
 uv run pytest
 ```
+
+## Architecture
+
+- **Transport**: Streamable HTTP (stateless) - latest MCP specification
+- **API Protocol**: JSON-RPC 2.0 over WebSocket to Deribit
+- **Session Management**: Stateless HTTP for horizontal scaling
+- **Data Format**: JSON (most tools) and CSV (instruments, expirations, options chain)
 
 ## License
 
