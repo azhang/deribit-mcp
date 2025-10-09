@@ -430,4 +430,125 @@ export class DeribitClient {
 
     return csvOutput;
   }
+
+  /**
+   * Get volatility index (DVOL) data.
+   *
+   * @param {string} currency - Currency symbol (e.g., "BTC", "ETH")
+   * @returns {Promise<Object>} Volatility index data including current level and changes
+   */
+  async getVolatilityIndexData(currency) {
+    return await this._call('get_volatility_index_data', { currency });
+  }
+
+  /**
+   * Get historical volatility for a currency.
+   *
+   * @param {string} currency - Currency symbol (e.g., "BTC", "ETH")
+   * @returns {Promise<Object>} Historical volatility data
+   */
+  async getHistoricalVolatility(currency) {
+    return await this._call('get_historical_volatility', { currency });
+  }
+
+  /**
+   * Get combo instruments (multi-leg strategies).
+   *
+   * @param {string} currency - Currency symbol (e.g., "BTC", "ETH")
+   * @returns {Promise<Array>} List of combo instruments
+   */
+  async getCombos(currency) {
+    return await this._call('get_combos', { currency });
+  }
+
+  /**
+   * Get current funding rate for perpetual contracts.
+   *
+   * @param {string} instrumentName - The instrument name (e.g., "BTC-PERPETUAL")
+   * @returns {Promise<Object>} Funding rate data including current, predicted, and historical rates
+   */
+  async getFundingRate(instrumentName) {
+    return await this._call('get_funding_rate_value', { instrument_name: instrumentName });
+  }
+
+  /**
+   * Get historical funding rate data for perpetual contracts.
+   *
+   * @param {string} instrumentName - The instrument name (e.g., "BTC-PERPETUAL")
+   * @param {number} [startTimestamp] - Start timestamp in milliseconds
+   * @param {number} [endTimestamp] - End timestamp in milliseconds
+   * @returns {Promise<Array>} Array of historical funding rate data points
+   */
+  async getFundingRateHistory(instrumentName, startTimestamp = null, endTimestamp = null) {
+    const params = { instrument_name: instrumentName };
+    if (startTimestamp !== null) {
+      params.start_timestamp = startTimestamp;
+    }
+    if (endTimestamp !== null) {
+      params.end_timestamp = endTimestamp;
+    }
+    return await this._call('get_funding_rate_history', params);
+  }
+
+  /**
+   * Get historical delivery prices for futures.
+   *
+   * @param {string} indexName - Index name (e.g., "btc_usd", "eth_usd")
+   * @param {number} [offset] - Offset for pagination
+   * @param {number} [count] - Number of results to return
+   * @returns {Promise<Object>} Historical delivery price data
+   */
+  async getDeliveryPrices(indexName, offset = null, count = null) {
+    const params = { index_name: indexName };
+    if (offset !== null) {
+      params.offset = offset;
+    }
+    if (count !== null) {
+      params.count = count;
+    }
+    return await this._call('get_delivery_prices', params);
+  }
+
+  /**
+   * Get book summary for all instruments of a currency.
+   *
+   * @param {string} currency - Currency symbol (e.g., "BTC", "ETH")
+   * @param {string} [kind] - Optional instrument kind filter
+   * @returns {Promise<Array>} Summary data for all instruments including best bid/ask, volume, etc.
+   */
+  async getBookSummaryByCurrency(currency, kind = null) {
+    const params = { currency };
+    if (kind !== null) {
+      params.kind = kind;
+    }
+    return await this._call('get_book_summary_by_currency', params);
+  }
+
+  /**
+   * Get detailed book summary for a specific instrument.
+   *
+   * @param {string} instrumentName - The instrument name
+   * @returns {Promise<Object>} Detailed summary including best bid/ask, volume, mark price, etc.
+   */
+  async getBookSummaryByInstrument(instrumentName) {
+    return await this._call('get_book_summary_by_instrument', { instrument_name: instrumentName });
+  }
+
+  /**
+   * Get TradingView-compatible chart data (OHLCV).
+   *
+   * @param {string} instrumentName - The instrument name
+   * @param {string} resolution - Chart resolution (1, 3, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1D)
+   * @param {number} startTimestamp - Start time (UNIX timestamp in milliseconds)
+   * @param {number} endTimestamp - End time (UNIX timestamp in milliseconds)
+   * @returns {Promise<Object>} OHLCV chart data
+   */
+  async getTradingviewChartData(instrumentName, resolution, startTimestamp, endTimestamp) {
+    return await this._call('get_tradingview_chart_data', {
+      instrument_name: instrumentName,
+      resolution,
+      start_timestamp: startTimestamp,
+      end_timestamp: endTimestamp
+    });
+  }
 }
