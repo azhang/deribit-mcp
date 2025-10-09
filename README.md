@@ -6,14 +6,21 @@ An MCP (Model Context Protocol) server that provides access to Deribit's public 
 
 This MCP server exposes the following tools for accessing Deribit market data:
 
-- **getOptionsChain** - Get complete options chain with real-time greeks (WebSocket) ⚡
+### Single-Instrument Tools
 - **getTicker** - Get current ticker information (prices, volume, bid/ask spreads)
 - **getOrderBook** - Retrieve order book with bids and asks
+- **getIndexPrice** - Get current index price for a currency
+- **getOptionsChain** - Get complete options chain with real-time greeks (WebSocket) ⚡
 - **getInstruments** - List available trading instruments
 - **getLastTrades** - Fetch recent trade history
 - **getCurrencies** - Get all available currencies
-- **getIndexPrice** - Get current index price for a currency
 - **getExpirations** - Get available expiration dates for instruments
+
+### Multi-Instrument Tools (Batch Queries)
+- **getTickers** - Get ticker data for multiple instruments (single WebSocket) ⚡
+- **getOrderBooks** - Get order books for multiple instruments (parallel)
+- **getIndexPrices** - Get index prices for multiple indices (parallel)
+- **getOptionsChains** - Get options chains for multiple expiries (single WebSocket) ⚡
 
 ### Architecture
 
@@ -341,6 +348,78 @@ Get available expiration dates for instruments. Much more efficient than calling
   "kind": "option"
 }
 ```
+
+### getTickers ⚡
+Get ticker data for multiple instruments using a single WebSocket connection. Much more efficient than calling `getTicker` multiple times.
+
+**Uses a single WebSocket connection for all instruments.**
+
+**Parameters:**
+- `instrumentNames` (required): Array of instrument names
+
+**Example:**
+```json
+{
+  "instrumentNames": ["BTC-PERPETUAL", "ETH-PERPETUAL", "SOL-PERPETUAL"]
+}
+```
+
+**Output:** JSON object with instrument names as keys and ticker data as values.
+
+### getOrderBooks
+Get order books for multiple instruments using parallel HTTP requests.
+
+**Parameters:**
+- `instrumentNames` (required): Array of instrument names
+- `depth` (optional): Order book depth
+
+**Example:**
+```json
+{
+  "instrumentNames": ["BTC-PERPETUAL", "ETH-PERPETUAL"],
+  "depth": 5
+}
+```
+
+**Output:** JSON object with instrument names as keys and order book data as values.
+
+### getIndexPrices
+Get index prices for multiple indices using parallel HTTP requests.
+
+**Parameters:**
+- `indexNames` (required): Array of index names
+
+**Example:**
+```json
+{
+  "indexNames": ["btc_usd", "eth_usd", "sol_usd"]
+}
+```
+
+**Output:** JSON object with index names as keys and price data as values.
+
+### getOptionsChains ⚡
+Get options chains for multiple expiries using a single WebSocket connection. Extremely efficient for getting data across multiple expiry dates.
+
+**Uses a single WebSocket connection for all instruments across all expiries.**
+
+**Parameters:**
+- `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
+- `expiries` (required): Array of expiry dates in format "9OCT25" or "DDMMMYY"
+- `minStrike` (optional): Minimum strike price filter
+- `maxStrike` (optional): Maximum strike price filter
+
+**Example:**
+```json
+{
+  "currency": "BTC",
+  "expiries": ["10OCT25", "17OCT25", "24OCT25"],
+  "minStrike": 100000,
+  "maxStrike": 130000
+}
+```
+
+**Output:** Text with CSV data for each expiry, separated by headers.
 
 ## Development
 
