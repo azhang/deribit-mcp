@@ -1,4 +1,6 @@
-name = "deribit-mcp"
+# IMPORTANT: Change this name if you already have a Worker with this name
+# to avoid overwriting existing Workers
+name = "deribit-mcp-server"
 main = "src/worker.py"
 compatibility_date = "2025-10-09"
 compatibility_flags = ["python_workers"]
@@ -11,14 +13,14 @@ command = ""
 vars = { MCP_TRANSPORT = "http", MCP_HOST = "0.0.0.0", MCP_PORT = "8787" }
 
 [env.preview]
-name = "deribit-mcp-preview"
+name = "deribit-mcp-server-preview"
 vars = { MCP_TRANSPORT = "http", MCP_HOST = "0.0.0.0", MCP_PORT = "8787" }
 
 # Durable Objects for stateful connections (if needed)
 [[durable_objects.bindings]]
 name = "DERIBIT_MCP"
 class_name = "DeribitMCPServer"
-script_name = "deribit-mcp"
+script_name = "deribit-mcp-server"
 
 [[migrations]]
 tag = "v1"
