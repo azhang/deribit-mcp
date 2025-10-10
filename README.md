@@ -51,7 +51,48 @@ npm install
 
 ## Usage
 
-The server is designed for **Cloudflare Workers** deployment with HTTP transport for remote access.
+The server supports two modes:
+- **stdio** - For local use with any MCP client
+- **Cloudflare Workers** - For remote deployment with global edge network
+
+### Local stdio mode
+
+The stdio mode runs the MCP server as a local process that Claude Desktop spawns and communicates with directly via stdin/stdout. This is the simplest way to use the server locally.
+
+1. Open Claude Desktop settings and click "Edit Config" or manually edit:
+   - **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+2. Add this configuration:
+```json
+{
+  "mcpServers": {
+    "deribit": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/deribit-mcp/src/stdio.js"
+      ]
+    }
+  }
+}
+```
+
+3. Replace `/absolute/path/to/deribit-mcp` with the actual path to this project
+4. Restart Claude Desktop
+
+**Example with absolute path:**
+```json
+{
+  "mcpServers": {
+    "deribit": {
+      "command": "node",
+      "args": [
+        "/Users/yourname/projects/deribit-mcp/src/stdio.js"
+      ]
+    }
+  }
+}
+```
 
 ### Remote via Cloudflare Workers
 
@@ -134,7 +175,15 @@ or `"https://deribit-mcp.<your-subdomain>.workers.dev/mcp"`
 
 ## Deployment
 
-### Local Testing (Development Mode)
+### Local Testing (stdio mode)
+
+Run the stdio server locally for testing:
+
+```bash
+npm run stdio
+```
+
+### Local Testing (Workers dev mode)
 
 Run the Cloudflare Workers development server:
 
@@ -184,6 +233,14 @@ Deploy to Cloudflare for global edge deployment with automatic CI/CD via GitHub 
 - Edit `wrangler.toml` to customize your deployment
 - See `.github/workflows/deploy.yml` for CI/CD pipeline
 
+### With MCP Inspector
+
+For interactive debugging and testing:
+
+**stdio mode:**
+```bash
+npx @modelcontextprotocol/inspector node src/stdio.js
+```
 
 ## Available Tools
 
@@ -564,10 +621,13 @@ Get TradingView-compatible OHLCV (candlestick) chart data.
 # Install dependencies
 npm install
 
-# Run Workers dev server (for local testing)
+# Run stdio server (for Claude Desktop testing)
+npm run stdio
+
+# Run Workers dev server (for Cloudflare Workers testing)
 npm run dev
 
-# Deploy to Cloudflare Workers (production)
+# Deploy to Cloudflare Workers
 npm run deploy
 ```
 
@@ -578,13 +638,15 @@ https://docs.deribit.com/
 
 ## Architecture
 
-- **Runtime**: Cloudflare Workers (production)
-- **Transport**: HTTP (streamable HTTP transport for remote MCP)
-- **Deployment**: Cloudflare Durable Objects with `McpAgent` class from `agents` package
+- **Runtime**: Node.js 18+ (local), Cloudflare Workers (production)
+- **Transport**:
+  - stdio (local with any MCP client)
+  - HTTP (streamable HTTP transport for remote MCP)
+  - Uses Cloudflare Durable Objects with `McpAgent` class from `agents` package
 - **API Protocol**: JSON-RPC 2.0 over HTTP (REST) and WebSocket to Deribit
 - **Data Format**: JSON (most tools) and CSV (instruments, expirations, options chain)
 - **Packages**:
-  - `@modelcontextprotocol/sdk` v1.20.0 - MCP protocol implementation
+  - `@modelcontextprotocol/sdk` - MCP protocol implementation
   - `agents` - Cloudflare's Agents SDK with McpAgent
   - `zod` - Schema validation
 
