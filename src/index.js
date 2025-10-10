@@ -539,17 +539,12 @@ export default {
   fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // SSE endpoint for MCP protocol
-    if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-      return DeribitMCP.serveSSE("/sse").fetch(request, env, ctx);
-    }
-
-    // HTTP endpoint for MCP protocol
+    // HTTP endpoint for MCP protocol (streamable HTTP transport)
     if (url.pathname === "/mcp") {
       return DeribitMCP.serve("/mcp").fetch(request, env, ctx);
     }
 
-    return new Response("Deribit MCP Server - use /sse or /mcp endpoints", {
+    return new Response("Deribit MCP Server - use /mcp endpoint", {
       status: 404,
       headers: { "Content-Type": "text/plain" }
     });
