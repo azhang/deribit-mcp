@@ -1,23 +1,15 @@
 #!/usr/bin/env node
 /**
- * Local stdio server for testing with MCP clients
- * Run with: node src/stdio.js
+ * Stdio entry point for Deribit MCP Server
+ * Run with: node src/stdio.js OR npm run stdio
  */
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createStdioServer } from './server.js';
 
-// Create the server instance
+// Create and start the stdio server
 const server = createStdioServer();
+const transport = new StdioServerTransport();
 
-// Start stdio server
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('Deribit MCP stdio server running');
-}
-
-main().catch((error) => {
-  console.error('Server error:', error);
-  process.exit(1);
-});
+await server.connect(transport);
+console.error('Deribit MCP stdio server running');

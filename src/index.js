@@ -1,6 +1,6 @@
 /**
- * MCP server for Deribit public API - Cloudflare Workers implementation
- * Uses the modern McpAgent pattern with Durable Objects
+ * Cloudflare Workers entry point for Deribit MCP Server
+ * Deployed with: npm run dev (local) or npm run deploy (production)
  */
 
 import { McpAgent } from "agents/mcp";
@@ -9,7 +9,7 @@ import { DeribitClient } from './deribit.js';
 import { registerDeribitTools } from './server.js';
 
 /**
- * Deribit MCP Agent
+ * Deribit MCP Agent for Cloudflare Workers
  * Provides tools for accessing Deribit's public API endpoints
  */
 export class DeribitMCP extends McpAgent {
