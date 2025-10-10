@@ -13,6 +13,9 @@ export class DeribitClient {
   constructor(baseUrl = 'https://www.deribit.com/api/v2') {
     this.baseUrl = baseUrl;
     this.wsClient = null;
+    // Simple in-memory cache with TTL
+    this.cache = new Map();
+    this.cacheTTL = 2000; // 2 second cache for market data
   }
 
   /**
@@ -25,7 +28,7 @@ export class DeribitClient {
   }
 
   /**
-   * Make a call to the Deribit REST API.
+   * Make a call to the Deribit REST API with caching.
    *
    * @param {string} method - The API method to call (e.g., "ticker")
    * @param {Object} params - Optional parameters for the method
@@ -42,17 +45,29 @@ export class DeribitClient {
       }
     }
 
+    const urlString = url.toString();
+
+    // Check cache first
+    const cached = this.cache.get(urlString);
+    if (cached && Date.now() < cached.expiry) {
+      return cached.data;
+    }
+
     // Retry logic for network issues
     let lastError;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const response = await fetch(url.toString(), {
+        const response = await fetch(urlString, {
           headers: {
-            'User-Agent': 'deribit-mcp/0.1.0'
+            'User-Agent': 'deribit-mcp/0.4.0'
           }
         });
 
         if (!response.ok) {
+          // Don't retry on rate limits - throw immediately
+          if (response.status === 429) {
+            throw new Error(`Rate limited by Deribit API. Please try again in a few seconds.`);
+          }
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
@@ -63,13 +78,19 @@ export class DeribitClient {
           throw new Error(`API Error ${error.code}: ${error.message}`);
         }
 
+        // Cache the result
+        this.cache.set(urlString, {
+          data: data.result,
+          expiry: Date.now() + this.cacheTTL
+        });
+
         return data.result;
       } catch (error) {
         console.error(`[Attempt ${attempt}/3] Fetch failed:`, error.message);
         lastError = error;
 
-        // Only retry on network errors, not API errors
-        if (error.message.includes('API Error') || attempt === 3) {
+        // Don't retry on rate limits or API errors
+        if (error.message.includes('Rate limited') || error.message.includes('API Error') || attempt === 3) {
           throw error;
         }
 
