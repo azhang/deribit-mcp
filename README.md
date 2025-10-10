@@ -96,12 +96,45 @@ The stdio mode runs the MCP server as a local process that Claude Desktop spawns
 
 ### Remote via Cloudflare Workers
 
-The remote mode connects to an MCP server running on Cloudflare Workers via HTTP/SSE. This allows you to access the server from anywhere and share it across multiple clients.
+The remote mode connects to an MCP server running on Cloudflare Workers via HTTP. This allows you to access the server from anywhere and share it across multiple clients.
+
+#### Claude Code
 
 **For local development:**
 
 1. Start the dev server: `npm run dev`
-2. Edit your Claude Desktop config:
+2. Add the server using CLI:
+```bash
+claude mcp add --transport http deribit http://localhost:8787/mcp
+```
+
+**For production deployment:**
+
+1. Deploy to Cloudflare Workers (see Deployment section below)
+2. Add the server using CLI:
+```bash
+claude mcp add --transport http deribit https://deribit.mcp.x.zip/mcp
+```
+or use your Workers subdomain: `https://deribit-mcp.<your-subdomain>.workers.dev/mcp`
+
+Alternatively, edit your Claude Code config file directly:
+```json
+{
+  "mcpServers": {
+    "deribit": {
+      "type": "http",
+      "url": "https://deribit.mcp.x.zip/mcp"
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+**For local development:**
+
+1. Start the dev server: `npm run dev`
+2. Edit your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -109,7 +142,7 @@ The remote mode connects to an MCP server running on Cloudflare Workers via HTTP
       "command": "npx",
       "args": [
         "mcp-remote",
-        "http://localhost:8787/sse"
+        "http://localhost:8787/mcp"
       ]
     }
   }
@@ -129,13 +162,13 @@ The remote mode connects to an MCP server running on Cloudflare Workers via HTTP
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://deribit.mcp.x.zip/sse"
+        "https://deribit.mcp.x.zip/mcp"
       ]
     }
   }
 }
 ```
-or `"https://deribit-mcp.<your-subdomain>.workers.dev/sse"`
+or `"https://deribit-mcp.<your-subdomain>.workers.dev/mcp"`
 
 3. Replace `<your-subdomain>` with your Cloudflare Workers subdomain
 4. Restart Claude Desktop
@@ -160,9 +193,9 @@ npm run dev
 
 Server will be available at `http://localhost:8787`
 
-To connect from Claude Desktop, use the `/sse` endpoint:
+To connect from Claude Desktop, use the `/mcp` endpoint:
 ```
-http://localhost:8787/sse
+http://localhost:8787/mcp
 ```
 
 ### Cloudflare Workers
@@ -608,7 +641,7 @@ https://docs.deribit.com/
 - **Runtime**: Node.js 18+ (local), Cloudflare Workers (production)
 - **Transport**:
   - stdio (local with any MCP client)
-  - SSE (Server-Sent Events) for remote MCP via `mcp-remote` client
+  - HTTP (streamable HTTP transport for remote MCP)
   - Uses Cloudflare Durable Objects with `McpAgent` class from `agents` package
 - **API Protocol**: JSON-RPC 2.0 over HTTP (REST) and WebSocket to Deribit
 - **Data Format**: JSON (most tools) and CSV (instruments, expirations, options chain)
