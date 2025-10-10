@@ -25,13 +25,16 @@ const server = new McpServer({
   version: '0.1.0',
 });
 
-// Register tools using the new pattern
+// Register tools using the recommended pattern
 
 // Get current ticker information for a Deribit instrument
-server.tool(
+server.registerTool(
   'get_ticker',
   {
-    instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL', 'ETH-25OCT24-3000-C')"),
+    description: 'Get current ticker information for a Deribit instrument. Returns prices, volume, bid/ask spreads, and other market data.',
+    inputSchema: {
+      instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL', 'ETH-25OCT24-3000-C')"),
+    }
   },
   async ({ instrument_name }) => {
     try {
@@ -49,11 +52,14 @@ server.tool(
 );
 
 // Get the current order book for a Deribit instrument
-server.tool(
+server.registerTool(
   'get_order_book',
   {
-    instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
-    depth: z.number().optional().describe('Order book depth (optional, varies by instrument type)'),
+    description: 'Get the current order book for a Deribit instrument. Shows bids and asks at different price levels.',
+    inputSchema: {
+      instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
+      depth: z.number().optional().describe('Order book depth (optional, varies by instrument type)'),
+    }
   },
   async ({ instrument_name, depth }) => {
     try {
@@ -71,13 +77,16 @@ server.tool(
 );
 
 // Get a list of available trading instruments for a specific currency
-server.tool(
+server.registerTool(
   'get_instruments',
   {
-    currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH', 'USDC')"),
-    kind: z.enum(['future', 'option', 'spot', 'future_combo', 'option_combo']).optional()
-      .describe('Instrument kind (optional)'),
-    expired: z.boolean().optional().describe('Include expired instruments (default: false)'),
+    description: 'Get a list of available trading instruments for a specific currency. Can filter by instrument kind (future, option, spot, etc.). Returns CSV format.',
+    inputSchema: {
+      currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH', 'USDC')"),
+      kind: z.enum(['future', 'option', 'spot', 'future_combo', 'option_combo']).optional()
+        .describe('Instrument kind (optional)'),
+      expired: z.boolean().optional().describe('Include expired instruments (default: false)'),
+    }
   },
   async ({ currency, kind, expired }) => {
     try {
@@ -99,12 +108,15 @@ server.tool(
 );
 
 // Get recent trade history for a Deribit instrument
-server.tool(
+server.registerTool(
   'get_last_trades',
   {
-    instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
-    count: z.number().optional().describe('Number of trades to retrieve (default: 10, max: 1000)'),
-    include_old: z.boolean().optional().describe('Include old trades (default: false)'),
+    description: 'Get recent trade history for a Deribit instrument. Includes trade prices, sizes, and timestamps.',
+    inputSchema: {
+      instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
+      count: z.number().optional().describe('Number of trades to retrieve (default: 10, max: 1000)'),
+      include_old: z.boolean().optional().describe('Include old trades (default: false)'),
+    }
   },
   async ({ instrument_name, count, include_old }) => {
     try {
@@ -126,9 +138,12 @@ server.tool(
 );
 
 // Get a list of all available currencies on Deribit
-server.tool(
+server.registerTool(
   'get_currencies',
-  {},
+  {
+    description: 'Get a list of all available currencies on Deribit. Includes their properties and trading information.',
+    inputSchema: {}
+  },
   async () => {
     try {
       const result = await getClient().getCurrencies();
@@ -145,10 +160,13 @@ server.tool(
 );
 
 // Get the current index price for a currency pair
-server.tool(
+server.registerTool(
   'get_index_price',
   {
-    index_name: z.string().describe("Index name (e.g., 'btc_usd', 'eth_usd', 'sol_usd')"),
+    description: 'Get the current index price for a currency pair. The index price is calculated from multiple exchanges.',
+    inputSchema: {
+      index_name: z.string().describe("Index name (e.g., 'btc_usd', 'eth_usd', 'sol_usd')"),
+    }
   },
   async ({ index_name }) => {
     try {
@@ -166,12 +184,15 @@ server.tool(
 );
 
 // Get available expiration dates for instruments
-server.tool(
+server.registerTool(
   'get_expirations',
   {
-    currency: z.string().describe("Currency symbol: BTC, ETH, USDC, USDT, 'any' for all, or 'grouped' for all grouped by currency"),
-    kind: z.enum(['future', 'option', 'any']).describe('Instrument kind'),
-    currency_pair: z.string().optional().describe("Optional currency pair filter (e.g., 'eth_usdc', 'btc_usd', 'sol_usdc')"),
+    description: 'Get available expiration dates for instruments. Much more efficient than calling getInstruments to find expirations. Returns CSV format.',
+    inputSchema: {
+      currency: z.string().describe("Currency symbol: BTC, ETH, USDC, USDT, 'any' for all, or 'grouped' for all grouped by currency"),
+      kind: z.enum(['future', 'option', 'any']).describe('Instrument kind'),
+      currency_pair: z.string().optional().describe("Optional currency pair filter (e.g., 'eth_usdc', 'btc_usd', 'sol_usdc')"),
+    }
   },
   async ({ currency, kind, currency_pair }) => {
     try {
@@ -193,13 +214,16 @@ server.tool(
 );
 
 // Get complete options chain for a specific expiry with real-time greeks
-server.tool(
+server.registerTool(
   'get_options_chain',
   {
-    currency: z.string().describe("Settlement currency: 'BTC' for BTC-settled options (e.g., ETH-9OCT25-4000-C), 'USDC' for USDC-settled options (e.g., ETH_USDC-9OCT25-4000-C, SOL_USDC-...). Valid values: BTC, ETH, USDC, USDT, EURR"),
-    expiry: z.string().describe("Expiry date in format like '9OCT25', '27MAR25', or 'DDMMMYY'"),
-    min_strike: z.number().optional().describe('Optional minimum strike price to filter results'),
-    max_strike: z.number().optional().describe('Optional maximum strike price to filter results'),
+    description: 'Get complete options chain for a specific expiry with real-time greeks. Returns data in CSV format for easy table viewing. Uses WebSocket for efficient real-time data. Includes prices, volumes, open interest, delta, gamma, vega, theta, rho, and IV.',
+    inputSchema: {
+      currency: z.string().describe("Settlement currency: 'BTC' for BTC-settled options (e.g., ETH-9OCT25-4000-C), 'USDC' for USDC-settled options (e.g., ETH_USDC-9OCT25-4000-C, SOL_USDC-...). Valid values: BTC, ETH, USDC, USDT, EURR"),
+      expiry: z.string().describe("Expiry date in format like '9OCT25', '27MAR25', or 'DDMMMYY'"),
+      min_strike: z.number().optional().describe('Optional minimum strike price to filter results'),
+      max_strike: z.number().optional().describe('Optional maximum strike price to filter results'),
+    }
   },
   async ({ currency, expiry, min_strike, max_strike }) => {
     try {
@@ -222,10 +246,13 @@ server.tool(
 );
 
 // Get ticker information for multiple instruments
-server.tool(
+server.registerTool(
   'get_tickers',
   {
-    instrument_names: z.array(z.string()).describe("Array of instrument names (e.g., ['BTC-PERPETUAL', 'ETH-PERPETUAL'])"),
+    description: 'Get ticker data for multiple instruments using a single WebSocket connection. Much more efficient than calling get_ticker multiple times.',
+    inputSchema: {
+      instrument_names: z.array(z.string()).describe("Array of instrument names (e.g., ['BTC-PERPETUAL', 'ETH-PERPETUAL'])"),
+    }
   },
   async ({ instrument_names }) => {
     try {
@@ -243,10 +270,13 @@ server.tool(
 );
 
 // Get index prices for multiple indices
-server.tool(
+server.registerTool(
   'get_index_prices',
   {
-    index_names: z.array(z.string()).describe("Array of index names (e.g., ['btc_usd', 'eth_usd'])"),
+    description: 'Get index prices for multiple indices using parallel HTTP requests.',
+    inputSchema: {
+      index_names: z.array(z.string()).describe("Array of index names (e.g., ['btc_usd', 'eth_usd'])"),
+    }
   },
   async ({ index_names }) => {
     try {
@@ -264,11 +294,14 @@ server.tool(
 );
 
 // Get order books for multiple instruments
-server.tool(
+server.registerTool(
   'get_order_books',
   {
-    instrument_names: z.array(z.string()).describe("Array of instrument names"),
-    depth: z.number().optional().describe("Order book depth (optional)"),
+    description: 'Get order books for multiple instruments using parallel HTTP requests.',
+    inputSchema: {
+      instrument_names: z.array(z.string()).describe("Array of instrument names"),
+      depth: z.number().optional().describe("Order book depth (optional)"),
+    }
   },
   async ({ instrument_names, depth }) => {
     try {
@@ -286,13 +319,16 @@ server.tool(
 );
 
 // Get options chains for multiple expiries
-server.tool(
+server.registerTool(
   'get_options_chains',
   {
-    currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH', 'USDC')"),
-    expiries: z.array(z.string()).describe("Array of expiry dates in format like '9OCT25' or '29MAR24'"),
-    min_strike: z.number().optional().describe("Minimum strike price filter (optional)"),
-    max_strike: z.number().optional().describe("Maximum strike price filter (optional)"),
+    description: 'Get options chains for multiple expiries using a single WebSocket connection. Extremely efficient for getting data across multiple expiry dates.',
+    inputSchema: {
+      currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH', 'USDC')"),
+      expiries: z.array(z.string()).describe("Array of expiry dates in format like '9OCT25' or '29MAR24'"),
+      min_strike: z.number().optional().describe("Minimum strike price filter (optional)"),
+      max_strike: z.number().optional().describe("Maximum strike price filter (optional)"),
+    }
   },
   async ({ currency, expiries, min_strike, max_strike }) => {
     try {
@@ -320,10 +356,13 @@ server.tool(
 );
 
 // Get volatility index (DVOL) data
-server.tool(
+server.registerTool(
   'get_volatility_index_data',
   {
-    currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
+    description: 'Get the current Deribit Volatility Index (DVOL) data, which represents the 30-day implied volatility.',
+    inputSchema: {
+      currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
+    }
   },
   async ({ currency }) => {
     try {
@@ -341,10 +380,13 @@ server.tool(
 );
 
 // Get historical volatility
-server.tool(
+server.registerTool(
   'get_historical_volatility',
   {
-    currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
+    description: 'Get historical realized volatility data for a currency.',
+    inputSchema: {
+      currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
+    }
   },
   async ({ currency }) => {
     try {
@@ -362,10 +404,13 @@ server.tool(
 );
 
 // Get combo instruments
-server.tool(
+server.registerTool(
   'get_combos',
   {
-    currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
+    description: 'Get available combo instruments (multi-leg strategies like spreads, straddles, etc.).',
+    inputSchema: {
+      currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
+    }
   },
   async ({ currency }) => {
     try {
@@ -383,10 +428,13 @@ server.tool(
 );
 
 // Get funding rate for perpetual contracts
-server.tool(
+server.registerTool(
   'get_funding_rate',
   {
-    instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
+    description: 'Get the current and predicted funding rates for perpetual contracts.',
+    inputSchema: {
+      instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
+    }
   },
   async ({ instrument_name }) => {
     try {
@@ -404,12 +452,15 @@ server.tool(
 );
 
 // Get historical funding rate data
-server.tool(
+server.registerTool(
   'get_funding_rate_history',
   {
-    instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
-    start_timestamp: z.number().optional().describe("Start time (UNIX timestamp in milliseconds)"),
-    end_timestamp: z.number().optional().describe("End time (UNIX timestamp in milliseconds)"),
+    description: 'Get historical funding rate data for analyzing funding rate trends over time.',
+    inputSchema: {
+      instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
+      start_timestamp: z.number().optional().describe("Start time (UNIX timestamp in milliseconds)"),
+      end_timestamp: z.number().optional().describe("End time (UNIX timestamp in milliseconds)"),
+    }
   },
   async ({ instrument_name, start_timestamp, end_timestamp }) => {
     try {
@@ -431,12 +482,15 @@ server.tool(
 );
 
 // Get historical delivery prices
-server.tool(
+server.registerTool(
   'get_delivery_prices',
   {
-    index_name: z.string().describe("Index name (e.g., 'btc_usd', 'eth_usd')"),
-    offset: z.number().optional().describe("Offset for pagination (optional)"),
-    count: z.number().optional().describe("Number of results to return (optional)"),
+    description: 'Get historical delivery/settlement prices for futures and options.',
+    inputSchema: {
+      index_name: z.string().describe("Index name (e.g., 'btc_usd', 'eth_usd')"),
+      offset: z.number().optional().describe("Offset for pagination (optional)"),
+      count: z.number().optional().describe("Number of results to return (optional)"),
+    }
   },
   async ({ index_name, offset, count }) => {
     try {
@@ -458,11 +512,14 @@ server.tool(
 );
 
 // Get book summary for all instruments of a currency
-server.tool(
+server.registerTool(
   'get_book_summary_by_currency',
   {
-    currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
-    kind: z.string().optional().describe("Instrument kind: 'future', 'option', 'spot', etc. (optional)"),
+    description: 'Get a summary of all instruments for a currency, including best bid/ask, 24h volume, and more.',
+    inputSchema: {
+      currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
+      kind: z.string().optional().describe("Instrument kind: 'future', 'option', 'spot', etc. (optional)"),
+    }
   },
   async ({ currency, kind }) => {
     try {
@@ -483,10 +540,13 @@ server.tool(
 );
 
 // Get book summary for a specific instrument
-server.tool(
+server.registerTool(
   'get_book_summary_by_instrument',
   {
-    instrument_name: z.string().describe("The instrument name"),
+    description: 'Get detailed book summary for a specific instrument including best bid/ask, volume, mark price, and more.',
+    inputSchema: {
+      instrument_name: z.string().describe("The instrument name"),
+    }
   },
   async ({ instrument_name }) => {
     try {
@@ -504,13 +564,16 @@ server.tool(
 );
 
 // Get TradingView chart data (OHLCV)
-server.tool(
+server.registerTool(
   'get_tradingview_chart_data',
   {
-    instrument_name: z.string().describe("The instrument name"),
-    resolution: z.string().describe("Chart resolution (1, 3, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1D)"),
-    start_timestamp: z.number().describe("Start time (UNIX timestamp in milliseconds)"),
-    end_timestamp: z.number().describe("End time (UNIX timestamp in milliseconds)"),
+    description: 'Get TradingView-compatible OHLCV (candlestick) chart data.',
+    inputSchema: {
+      instrument_name: z.string().describe("The instrument name"),
+      resolution: z.string().describe("Chart resolution (1, 3, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1D)"),
+      start_timestamp: z.number().describe("Start time (UNIX timestamp in milliseconds)"),
+      end_timestamp: z.number().describe("End time (UNIX timestamp in milliseconds)"),
+    }
   },
   async ({ instrument_name, resolution, start_timestamp, end_timestamp }) => {
     try {
