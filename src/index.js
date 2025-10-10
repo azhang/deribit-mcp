@@ -33,19 +33,50 @@ export class DeribitMCP extends McpAgent {
   }
 }
 
+// CORS headers for browser-based MCP clients
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, mcp-session-id",
+  "Access-Control-Expose-Headers": "Mcp-Session-Id",
+};
+
 // Worker fetch handler
 export default {
-  fetch(request, env, ctx) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    // Handle CORS preflight requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: CORS_HEADERS,
+      });
+    }
 
     // HTTP endpoint for MCP protocol (streamable HTTP transport)
     if (url.pathname === "/mcp") {
-      return DeribitMCP.serve("/mcp").fetch(request, env, ctx);
+      const response = await DeribitMCP.serve("/mcp").fetch(request, env, ctx);
+
+      // Add CORS headers to the response
+      const headers = new Headers(response.headers);
+      Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+        headers.set(key, value);
+      });
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
     }
 
     return new Response("Deribit MCP Server - use /mcp endpoint", {
       status: 404,
-      headers: { "Content-Type": "text/plain" }
+      headers: {
+        "Content-Type": "text/plain",
+        ...CORS_HEADERS
+      }
     });
   },
 };
