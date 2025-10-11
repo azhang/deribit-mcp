@@ -456,10 +456,18 @@ export class DeribitClient {
    * Get volatility index (DVOL) data.
    *
    * @param {string} currency - Currency symbol (e.g., "BTC", "ETH")
+   * @param {number} startTimestamp - Start timestamp in milliseconds
+   * @param {number} endTimestamp - End timestamp in milliseconds
+   * @param {string} resolution - Resolution in minutes (e.g., "60")
    * @returns {Promise<Object>} Volatility index data including current level and changes
    */
-  async getVolatilityIndexData(currency) {
-    return await this._call('get_volatility_index_data', { currency });
+  async getVolatilityIndexData(currency, startTimestamp, endTimestamp, resolution) {
+    return await this._call('get_volatility_index_data', {
+      currency,
+      start_timestamp: startTimestamp,
+      end_timestamp: endTimestamp,
+      resolution
+    });
   }
 
   /**
@@ -483,13 +491,19 @@ export class DeribitClient {
   }
 
   /**
-   * Get current funding rate for perpetual contracts.
+   * Get funding rate for perpetual contracts over a time period.
    *
    * @param {string} instrumentName - The instrument name (e.g., "BTC-PERPETUAL")
-   * @returns {Promise<Object>} Funding rate data including current, predicted, and historical rates
+   * @param {number} startTimestamp - Start timestamp in milliseconds
+   * @param {number} endTimestamp - End timestamp in milliseconds
+   * @returns {Promise<Object>} Funding rate data for the specified period
    */
-  async getFundingRate(instrumentName) {
-    return await this._call('get_funding_rate_value', { instrument_name: instrumentName });
+  async getFundingRate(instrumentName, startTimestamp, endTimestamp) {
+    return await this._call('get_funding_rate_value', {
+      instrument_name: instrumentName,
+      start_timestamp: startTimestamp,
+      end_timestamp: endTimestamp
+    });
   }
 
   /**
