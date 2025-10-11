@@ -345,14 +345,17 @@ export function registerDeribitTools(server, getClient) {
   server.registerTool(
     'get_volatility_index_data',
     {
-      description: 'Get the current Deribit Volatility Index (DVOL) data, which represents the 30-day implied volatility.',
+      description: 'Get Deribit Volatility Index (DVOL) candle data over a time period. Returns OHLC volatility data.',
       inputSchema: {
         currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
+        start_timestamp: z.number().describe("Start time (UNIX timestamp in milliseconds)"),
+        end_timestamp: z.number().describe("End time (UNIX timestamp in milliseconds)"),
+        resolution: z.string().describe("Resolution in minutes (e.g., '60' for hourly candles)"),
       }
     },
-    async ({ currency }) => {
+    async ({ currency, start_timestamp, end_timestamp, resolution }) => {
       try {
-        const result = await getClient().getVolatilityIndexData(currency);
+        const result = await getClient().getVolatilityIndexData(currency, start_timestamp, end_timestamp, resolution);
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
@@ -417,14 +420,16 @@ export function registerDeribitTools(server, getClient) {
   server.registerTool(
     'get_funding_rate',
     {
-      description: 'Get the current and predicted funding rates for perpetual contracts.',
+      description: 'Get the funding rate for perpetual contracts over a specified time period.',
       inputSchema: {
         instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
+        start_timestamp: z.number().describe("Start time (UNIX timestamp in milliseconds)"),
+        end_timestamp: z.number().describe("End time (UNIX timestamp in milliseconds)"),
       }
     },
-    async ({ instrument_name }) => {
+    async ({ instrument_name, start_timestamp, end_timestamp }) => {
       try {
-        const result = await getClient().getFundingRate(instrument_name);
+        const result = await getClient().getFundingRate(instrument_name, start_timestamp, end_timestamp);
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
