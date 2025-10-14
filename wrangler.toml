@@ -20,3 +20,7 @@ enabled = true
 
 [env.preview]
 name = "deribit-mcp-preview"
+
+[route]
+pattern = "mcp.x.zip/deribit/*"
+zone_name = "x.zip"
