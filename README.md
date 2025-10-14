@@ -113,7 +113,7 @@ claude mcp add --transport http deribit http://localhost:8787/mcp
 1. Deploy to Cloudflare Workers (see Deployment section below)
 2. Add the server using CLI:
 ```bash
-claude mcp add --transport http deribit https://deribit.mcp.x.zip/mcp
+claude mcp add --transport http deribit https://mcp.x.zip/deribit/mcp
 ```
 or use your Workers subdomain: `https://deribit-mcp.<your-subdomain>.workers.dev/mcp`
 
@@ -123,7 +123,7 @@ Alternatively, edit your Claude Code config file directly:
   "mcpServers": {
     "deribit": {
       "type": "http",
-      "url": "https://deribit.mcp.x.zip/mcp"
+      "url": "https://mcp.x.zip/deribit/mcp"
     }
   }
 }
@@ -162,7 +162,7 @@ Alternatively, edit your Claude Code config file directly:
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://deribit.mcp.x.zip/mcp"
+        "https://mcp.x.zip/deribit/mcp"
       ]
     }
   }

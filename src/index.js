@@ -55,8 +55,8 @@ export default {
     }
 
     // HTTP endpoint for MCP protocol (streamable HTTP transport)
-    if (url.pathname === "/mcp") {
-      const response = await DeribitMCP.serve("/mcp").fetch(request, env, ctx);
+    if (url.pathname === "/deribit/mcp") {
+      const response = await DeribitMCP.serve("/deribit/mcp").fetch(request, env, ctx);
 
       // Add CORS headers to the response
       const headers = new Headers(response.headers);
@@ -71,7 +71,7 @@ export default {
       });
     }
 
-    return new Response("Deribit MCP Server - use /mcp endpoint", {
+    return new Response("Deribit MCP Server - use /deribit/mcp endpoint", {
       status: 404,
       headers: {
         "Content-Type": "text/plain",
