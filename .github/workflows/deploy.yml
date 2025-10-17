@@ -35,11 +35,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy to Cloudflare Workers Production
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env production
 
   preview:
     runs-on: ubuntu-latest
@@ -55,4 +56,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Cloudflare automatically creates preview URLs for PRs
+          command: deploy --env preview
+          # Note: Durable Objects don't support Cloudflare's auto preview URLs
+          # This creates a separate preview worker at deribit-mcp-preview.workers.dev
