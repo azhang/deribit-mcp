@@ -6,30 +6,67 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DeribitClient } from './deribit.js';
-import { registerDeribitTools } from './server.js';
+import { registerDeribitTools, registerPrivateTools } from './server.js';
 
 /**
  * Deribit MCP Agent for Cloudflare Workers
- * Provides tools for accessing Deribit's public API endpoints
+ * Provides tools for accessing both public and private Deribit API endpoints
  */
 export class DeribitMCP extends McpAgent {
   server = new McpServer({
-    name: "Deribit Market Data",
-    version: "0.4.0",
+    name: "Deribit Market Data & Trading",
+    version: "0.5.0",
+    instructions: `Deribit cryptocurrency exchange MCP server for market data and trading.
+
+💡 TIP: If you get rate limit errors, use 'set_deribit_credentials' to authenticate.
+Cloudflare Workers share IP addresses, so authenticated requests have much higher rate limits.
+Get free read-only API keys at: https://www.deribit.com/account/BTC/api`,
   });
 
   #client = null;
 
   getClient() {
     if (this.#client === null) {
-      this.#client = new DeribitClient();
+      // Start with public API client (default to test environment)
+      this.#client = new DeribitClient('https://test.deribit.com/api/v2');
     }
     return this.#client;
   }
 
   async init() {
-    // Register all Deribit tools using shared registration function
+    // Always register public tools
     registerDeribitTools(this.server, () => this.getClient());
+
+    // Always register private tools (they handle auth internally)
+    registerPrivateTools(this.server, () => this.getClient());
+
+    // Add a tool to check authentication status
+    this.server.registerTool(
+      'get_auth_status',
+      {
+        description: 'Check if the MCP server is authenticated with Deribit',
+        inputSchema: {}
+      },
+      async () => {
+        const client = this.getClient();
+        const hasCredentials = !!(client.clientId && client.clientSecret);
+        const environment = client.baseUrl.includes('test.deribit.com') ? 'test' :
+                           client.baseUrl.includes('www.deribit.com') ? 'production' : 'unknown';
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              authenticated: hasCredentials,
+              environment,
+              hasCredentials,
+              tokenValid: client.tokenExpiry ? client.tokenExpiry > Date.now() : false,
+              note: hasCredentials ? "Ready for private API operations" : "Use 'set_deribit_credentials' tool to authenticate"
+            }, null, 2)
+          }],
+        };
+      }
+    );
   }
 }
 

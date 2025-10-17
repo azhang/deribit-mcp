@@ -1,6 +1,6 @@
 name = "deribit-mcp"
 main = "src/index.js"
-compatibility_date = "2025-10-09"
+compatibility_date = "2025-10-08"
 compatibility_flags = ["nodejs_compat"]
 
 # Durable Objects configuration for MCP Agent

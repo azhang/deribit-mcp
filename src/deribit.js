@@ -10,12 +10,108 @@ import { WebSocketClient } from './ws-client.js';
 import { filterInstrumentsByExpiry, buildOptionsChainCSV } from './options.js';
 
 export class DeribitClient {
-  constructor(baseUrl = 'https://www.deribit.com/api/v2') {
+  constructor(baseUrl = 'https://www.deribit.com/api/v2', clientId = null, clientSecret = null, accessToken = null, refreshToken = null) {
     this.baseUrl = baseUrl;
     this.wsClient = null;
     // Simple in-memory cache with TTL
     this.cache = new Map();
     this.cacheTTL = 2000; // 2 second cache for market data
+
+    // Authentication credentials
+    this.clientId = clientId;
+    this.clientSecret = clientSecret;
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
+    this.tokenExpiry = null;
+  }
+
+  /**
+   * Authenticate with Deribit API to get access token
+   */
+  async authenticate() {
+    if (!this.clientId || !this.clientSecret) {
+      throw new Error('Client ID and Client Secret are required for authentication');
+    }
+
+    // If we have a valid token, use it
+    if (this.accessToken && this.tokenExpiry && this.tokenExpiry > Date.now()) {
+      return this.accessToken;
+    }
+
+    // Try to refresh token if we have one
+    if (this.refreshToken && this.tokenExpiry && this.tokenExpiry <= Date.now()) {
+      try {
+        await this.refreshAccessToken();
+        return this.accessToken;
+      } catch (error) {
+        console.error('Token refresh failed, re-authenticating:', error.message);
+      }
+    }
+
+    // Authenticate with client credentials
+    const response = await fetch(
+      `${this.baseUrl}/public/auth?` +
+      `grant_type=client_credentials&` +
+      `client_id=${encodeURIComponent(this.clientId)}&` +
+      `client_secret=${encodeURIComponent(this.clientSecret)}`,
+      {
+        headers: {
+          'User-Agent': 'deribit-mcp/0.4.0'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data.error) {
+      throw new Error(`Authentication error: ${data.error.message}`);
+    }
+
+    const result = data.result;
+    this.accessToken = result.access_token;
+    this.refreshToken = result.refresh_token;
+    this.tokenExpiry = Date.now() + (result.expires_in * 1000) - 60000; // Expire 1 minute early
+
+    return this.accessToken;
+  }
+
+  /**
+   * Refresh the access token using the refresh token
+   */
+  async refreshAccessToken() {
+    if (!this.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/public/auth?` +
+      `grant_type=refresh_token&` +
+      `refresh_token=${encodeURIComponent(this.refreshToken)}`,
+      {
+        headers: {
+          'User-Agent': 'deribit-mcp/0.4.0'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data.error) {
+      throw new Error(`Token refresh error: ${data.error.message}`);
+    }
+
+    const result = data.result;
+    this.accessToken = result.access_token;
+    this.refreshToken = result.refresh_token;
+    this.tokenExpiry = Date.now() + (result.expires_in * 1000) - 60000; // Expire 1 minute early
+
+    return this.accessToken;
   }
 
   /**
@@ -64,9 +160,12 @@ export class DeribitClient {
         });
 
         if (!response.ok) {
-          // Don't retry on rate limits - throw immediately
+          // Don't retry on rate limits - throw immediately with helpful message
           if (response.status === 429) {
-            throw new Error(`Rate limited by Deribit API. Please try again in a few seconds.`);
+            const authTip = !this.clientId ?
+              "\n\n💡 TIP: Use 'set_deribit_credentials' to authenticate. Authenticated requests have much higher rate limits and won't hit this error." :
+              "";
+            throw new Error(`Rate limited by Deribit API (429). Cloudflare Workers share IP addresses, causing frequent rate limits on public endpoints.${authTip}`);
           }
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -100,6 +199,81 @@ export class DeribitClient {
     }
 
     throw lastError;
+  }
+
+  /**
+   * Make a call to a private Deribit API endpoint
+   * @param {string} method - The API method to call (e.g., "get_account_summary")
+   * @param {Object} params - Parameters for the method
+   * @returns {Promise<any>} The result from the API response
+   */
+  async _callPrivate(method, params = {}) {
+    // Ensure we have an access token
+    await this.authenticate();
+
+    const url = new URL(`${this.baseUrl}/private/${method}`);
+
+    // Add access token and other parameters
+    const allParams = {
+      ...params,
+      access_token: this.accessToken
+    };
+
+    for (const [key, value] of Object.entries(allParams)) {
+      if (value !== undefined && value !== null) {
+        url.searchParams.append(key, value);
+      }
+    }
+
+    const urlString = url.toString();
+
+    try {
+      const response = await fetch(urlString, {
+        headers: {
+          'User-Agent': 'deribit-mcp/0.4.0'
+        }
+      });
+
+      if (!response.ok) {
+        // If we get 401, try to refresh token and retry once
+        if (response.status === 401 && this.refreshToken) {
+          console.log('Access token expired, refreshing...');
+          await this.refreshAccessToken();
+          // Update URL with new token
+          url.searchParams.set('access_token', this.accessToken);
+          const retryResponse = await fetch(url.toString(), {
+            headers: {
+              'User-Agent': 'deribit-mcp/0.4.0'
+            }
+          });
+          if (!retryResponse.ok) {
+            throw new Error(`HTTP error! status: ${retryResponse.status}`);
+          }
+          const retryData = await retryResponse.json();
+          if (retryData.error) {
+            throw new Error(`API Error ${retryData.error.code}: ${retryData.error.message}`);
+          }
+          return retryData.result;
+        }
+
+        if (response.status === 429) {
+          throw new Error(`Rate limited by Deribit API. Please try again in a few seconds.`);
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.error) {
+        const error = data.error;
+        throw new Error(`API Error ${error.code}: ${error.message}`);
+      }
+
+      return data.result;
+    } catch (error) {
+      console.error(`Private API call failed:`, error.message);
+      throw error;
+    }
   }
 
   /**
@@ -571,5 +745,170 @@ export class DeribitClient {
       start_timestamp: startTimestamp,
       end_timestamp: endTimestamp
     });
+  }
+
+  // ===== PRIVATE API METHODS (Require Authentication) =====
+
+  /**
+   * Get account summary for a specific currency (requires authentication)
+   * @param {string} currency - Currency (BTC, ETH, USDC, etc.)
+   * @param {boolean} extended - Include additional fields
+   * @returns {Promise<Object>} Account summary data
+   */
+  async getAccountSummary(currency, extended = true) {
+    return await this._callPrivate('get_account_summary', { currency, extended });
+  }
+
+  /**
+   * Get current positions (requires authentication)
+   * @param {string} currency - Currency (BTC, ETH, USDC, etc.)
+   * @param {string} kind - Instrument kind (future, option, spot, or omit for all)
+   * @returns {Promise<Array>} Array of position data
+   */
+  async getPositions(currency, kind = null) {
+    const params = { currency };
+    if (kind) {
+      params.kind = kind;
+    }
+    return await this._callPrivate('get_positions', params);
+  }
+
+  /**
+   * Get open orders (requires authentication)
+   * @param {string} currency - Currency (BTC, ETH, USDC, etc.)
+   * @param {string} kind - Instrument kind (future, option, spot, or omit for all)
+   * @param {string} type - Order type (limit, market, stop_limit, stop_market, or omit for all)
+   * @returns {Promise<Array>} Array of open orders
+   */
+  async getOpenOrders(currency = null, kind = null, type = null) {
+    const params = {};
+    if (currency) params.currency = currency;
+    if (kind) params.kind = kind;
+    if (type) params.type = type;
+
+    const endpoint = currency ? 'get_open_orders_by_currency' : 'get_open_orders';
+    return await this._callPrivate(endpoint, params);
+  }
+
+  /**
+   * Place an order (requires authentication)
+   * WARNING: This places real orders on the exchange!
+   * @param {Object} orderParams - Order parameters
+   * @returns {Promise<Object>} Order result
+   */
+  async placeOrder(orderParams) {
+    // Required: instrument_name, amount, type (limit/market)
+    // For limit orders: also need price
+    // Optional: label, reduce_only, post_only, etc.
+    return await this._callPrivate('buy', orderParams); // or 'sell'
+  }
+
+  /**
+   * Buy an instrument (requires authentication)
+   * @param {string} instrumentName - The instrument to buy
+   * @param {number} amount - Amount in contracts or currency
+   * @param {string} type - Order type (limit, market, stop_limit, stop_market)
+   * @param {number} price - Limit price (required for limit orders)
+   * @param {Object} additionalParams - Additional order parameters
+   * @returns {Promise<Object>} Order result
+   */
+  async buy(instrumentName, amount, type = 'limit', price = null, additionalParams = {}) {
+    const params = {
+      instrument_name: instrumentName,
+      amount,
+      type,
+      ...additionalParams
+    };
+    if (type === 'limit' || type === 'stop_limit') {
+      if (!price) throw new Error('Price is required for limit orders');
+      params.price = price;
+    }
+    return await this._callPrivate('buy', params);
+  }
+
+  /**
+   * Sell an instrument (requires authentication)
+   * @param {string} instrumentName - The instrument to sell
+   * @param {number} amount - Amount in contracts or currency
+   * @param {string} type - Order type (limit, market, stop_limit, stop_market)
+   * @param {number} price - Limit price (required for limit orders)
+   * @param {Object} additionalParams - Additional order parameters
+   * @returns {Promise<Object>} Order result
+   */
+  async sell(instrumentName, amount, type = 'limit', price = null, additionalParams = {}) {
+    const params = {
+      instrument_name: instrumentName,
+      amount,
+      type,
+      ...additionalParams
+    };
+    if (type === 'limit' || type === 'stop_limit') {
+      if (!price) throw new Error('Price is required for limit orders');
+      params.price = price;
+    }
+    return await this._callPrivate('sell', params);
+  }
+
+  /**
+   * Cancel an order (requires authentication)
+   * @param {string} orderId - The order ID to cancel
+   * @returns {Promise<Object>} Cancellation result
+   */
+  async cancelOrder(orderId) {
+    return await this._callPrivate('cancel', { order_id: orderId });
+  }
+
+  /**
+   * Cancel all orders (requires authentication)
+   * @param {string} currency - Optional currency filter
+   * @param {string} kind - Optional instrument kind filter
+   * @param {string} type - Optional order type filter
+   * @returns {Promise<number>} Number of cancelled orders
+   */
+  async cancelAllOrders(currency = null, kind = null, type = null) {
+    const params = {};
+    if (currency) params.currency = currency;
+    if (kind) params.kind = kind;
+    if (type) params.type = type;
+
+    const endpoint = currency ? 'cancel_all_by_currency' : 'cancel_all';
+    return await this._callPrivate(endpoint, params);
+  }
+
+  /**
+   * Get order history (requires authentication)
+   * @param {string} currency - Currency
+   * @param {string} kind - Instrument kind (optional)
+   * @param {number} count - Number of orders to retrieve
+   * @param {number} offset - Offset for pagination
+   * @returns {Promise<Array>} Array of historical orders
+   */
+  async getOrderHistory(currency, kind = null, count = 100, offset = 0) {
+    const params = { currency, count, offset };
+    if (kind) params.kind = kind;
+    return await this._callPrivate('get_order_history_by_currency', params);
+  }
+
+  /**
+   * Get user trades (requires authentication)
+   * @param {string} currency - Currency
+   * @param {string} kind - Instrument kind (optional)
+   * @param {number} count - Number of trades to retrieve
+   * @param {boolean} includeOld - Include old trades
+   * @returns {Promise<Object>} Trade history
+   */
+  async getUserTrades(currency, kind = null, count = 100, includeOld = false) {
+    const params = { currency, count, include_old: includeOld };
+    if (kind) params.kind = kind;
+    return await this._callPrivate('get_user_trades_by_currency', params);
+  }
+
+  /**
+   * Get subaccounts (requires authentication)
+   * @param {boolean} withPortfolio - Include portfolio info
+   * @returns {Promise<Array>} List of subaccounts
+   */
+  async getSubaccounts(withPortfolio = false) {
+    return await this._callPrivate('get_subaccounts', { with_portfolio: withPortfolio });
   }
 }
