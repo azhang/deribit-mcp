@@ -25,6 +25,29 @@ Get free read-only API keys at: https://www.deribit.com/account/BTC/api`,
 
   #client = null;
 
+  constructor(ctx, env) {
+    super(ctx, env);
+
+    // Load credentials from persistent storage during initialization
+    ctx.blockConcurrencyWhile(async () => {
+      const credentials = await ctx.storage.get("deribit_credentials");
+      if (credentials) {
+        this.#client = new DeribitClient(credentials.baseUrl);
+        this.#client.clientId = credentials.clientId;
+        this.#client.clientSecret = credentials.clientSecret;
+        // Re-authenticate to get fresh access token
+        try {
+          await this.#client.authenticate();
+        } catch (error) {
+          console.error('Failed to restore authentication:', error);
+          // Clear invalid credentials
+          await ctx.storage.delete("deribit_credentials");
+          this.#client = null;
+        }
+      }
+    });
+  }
+
   getClient() {
     if (this.#client === null) {
       // Start with public API client (default to test environment)
@@ -38,7 +61,7 @@ Get free read-only API keys at: https://www.deribit.com/account/BTC/api`,
     registerDeribitTools(this.server, () => this.getClient());
 
     // Always register private tools (they handle auth internally)
-    registerPrivateTools(this.server, () => this.getClient());
+    registerPrivateTools(this.server, () => this.getClient(), this.ctx);
 
     // Add a tool to check authentication status
     this.server.registerTool(

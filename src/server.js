@@ -592,7 +592,7 @@ export function registerDeribitTools(server, getClient) {
  * @param {McpServer} server - The MCP server instance to register tools on
  * @param {Function} getClient - Function that returns a DeribitClient instance
  */
-export function registerPrivateTools(server, getClient) {
+export function registerPrivateTools(server, getClient, ctx) {
   // Tool to set Deribit credentials
   server.registerTool(
     'set_deribit_credentials',
@@ -625,15 +625,57 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
         // Test authentication
         await client.authenticate();
 
+        // Persist credentials to storage
+        await ctx.storage.put("deribit_credentials", {
+          baseUrl,
+          clientId: client_id,
+          clientSecret: client_secret,
+          environment
+        });
+
         return {
           content: [{
             type: 'text',
-            text: `✅ Successfully authenticated with Deribit ${environment} environment. You can now use private API tools.`
+            text: `✅ Successfully authenticated with Deribit ${environment} environment. Credentials saved and will persist across sessions.`
           }],
         };
       } catch (error) {
         return {
           content: [{ type: 'text', text: `❌ Authentication failed: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool to clear stored credentials
+  server.registerTool(
+    'clear_credentials',
+    {
+      description: 'Clear stored Deribit API credentials. Use this to log out or switch accounts.',
+      inputSchema: {}
+    },
+    async () => {
+      try {
+        await ctx.storage.delete("deribit_credentials");
+
+        // Reset client to public-only mode
+        const client = getClient();
+        client.clientId = null;
+        client.clientSecret = null;
+        client.accessToken = null;
+        client.refreshToken = null;
+        client.tokenExpiry = null;
+
+        return {
+          content: [{
+            type: 'text',
+            text: '✅ Credentials cleared. You are now in public API mode.'
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `Error: ${error.message}` }],
           isError: true,
         };
       }
