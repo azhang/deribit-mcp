@@ -17,10 +17,10 @@ new_sqlite_classes = ["DeribitMCP"]
 enabled = true
 
 [env.production]
+routes = [
+  { pattern = "mcp.x.zip/deribit/*", zone_name = "x.zip" }
+]
 
 [env.preview]
 name = "deribit-mcp-preview"
-
-[route]
-pattern = "mcp.x.zip/deribit/*"
-zone_name = "x.zip"
+# No routes for preview - it gets a workers.dev URL
