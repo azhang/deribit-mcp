@@ -588,6 +588,261 @@ export function registerDeribitTools(server, getClient) {
 }
 
 /**
+ * Register private Deribit tools that require authentication
+ * @param {McpServer} server - The MCP server instance to register tools on
+ * @param {Function} getClient - Function that returns a DeribitClient instance
+ */
+export function registerPrivateTools(server, getClient) {
+  // Tool to set Deribit credentials
+  server.registerTool(
+    'set_deribit_credentials',
+    {
+      description: `Set your Deribit API credentials to avoid rate limits and access private endpoints.
+
+📊 Public tools work without auth, but Cloudflare Workers share IP addresses causing frequent rate limit errors (429).
+🔑 Authenticated requests have much higher rate limits and won't hit these errors.
+
+Create read-only API keys at: https://www.deribit.com/account/BTC/api
+Recommended scopes: 'account:read', 'trade:read' (no write permissions needed unless trading)`,
+      inputSchema: {
+        client_id: z.string().describe("Your Deribit API Client ID"),
+        client_secret: z.string().describe("Your Deribit API Client Secret"),
+        environment: z.enum(['test', 'production']).describe("Deribit environment (use 'test' for testing with fake money)"),
+      }
+    },
+    async ({ client_id, client_secret, environment }) => {
+      try {
+        const baseUrl = environment === 'production'
+          ? 'https://www.deribit.com/api/v2'
+          : 'https://test.deribit.com/api/v2';
+
+        // Update the client with new credentials
+        const client = getClient();
+        client.baseUrl = baseUrl;
+        client.clientId = client_id;
+        client.clientSecret = client_secret;
+
+        // Test authentication
+        await client.authenticate();
+
+        return {
+          content: [{
+            type: 'text',
+            text: `✅ Successfully authenticated with Deribit ${environment} environment. You can now use private API tools.`
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `❌ Authentication failed: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get account summary
+  server.registerTool(
+    'get_account_summary',
+    {
+      description: '[REQUIRES AUTH] Get account summary for a specific currency. Shows balances, margins, P&L, and other account information.',
+      inputSchema: {
+        currency: z.string().describe("Currency (e.g., 'BTC', 'ETH', 'USDC')"),
+        extended: z.boolean().optional().describe("Include extended information (default: true)"),
+      }
+    },
+    async ({ currency, extended }) => {
+      try {
+        const result = await getClient().getAccountSummary(currency, extended !== false);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `Error: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get positions
+  server.registerTool(
+    'get_positions',
+    {
+      description: '[REQUIRES AUTH] Get current positions for a specific currency. Shows open positions with sizes, P&L, and other details.',
+      inputSchema: {
+        currency: z.string().describe("Currency (e.g., 'BTC', 'ETH', 'USDC')"),
+        kind: z.enum(['future', 'option', 'spot', 'future_combo', 'option_combo']).optional()
+          .describe('Instrument kind filter (optional)'),
+      }
+    },
+    async ({ currency, kind }) => {
+      try {
+        const result = await getClient().getPositions(currency, kind || null);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `Error: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get open orders
+  server.registerTool(
+    'get_open_orders',
+    {
+      description: '[REQUIRES AUTH] Get open orders, optionally filtered by currency, instrument kind, or order type.',
+      inputSchema: {
+        currency: z.string().optional().describe("Currency filter (e.g., 'BTC', 'ETH')"),
+        kind: z.enum(['future', 'option', 'spot']).optional()
+          .describe('Instrument kind filter'),
+        type: z.enum(['limit', 'market', 'stop_limit', 'stop_market']).optional()
+          .describe('Order type filter'),
+      }
+    },
+    async ({ currency, kind, type }) => {
+      try {
+        const result = await getClient().getOpenOrders(
+          currency || null,
+          kind || null,
+          type || null
+        );
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `Error: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Cancel all orders
+  server.registerTool(
+    'cancel_all_orders',
+    {
+      description: '[REQUIRES AUTH] ⚠️ Cancel ALL open orders, optionally filtered by currency, kind, or type.',
+      inputSchema: {
+        currency: z.string().optional().describe("Currency filter"),
+        kind: z.enum(['future', 'option', 'spot']).optional().describe('Instrument kind filter'),
+        type: z.enum(['limit', 'market', 'stop_limit', 'stop_market']).optional().describe('Order type filter'),
+      }
+    },
+    async ({ currency, kind, type }) => {
+      try {
+        const result = await getClient().cancelAllOrders(
+          currency || null,
+          kind || null,
+          type || null
+        );
+        return {
+          content: [{ type: 'text', text: `Cancelled ${result} orders` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `Error: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get order history
+  server.registerTool(
+    'get_order_history',
+    {
+      description: '[REQUIRES AUTH] Get historical orders for a specific currency.',
+      inputSchema: {
+        currency: z.string().describe("Currency (e.g., 'BTC', 'ETH')"),
+        kind: z.enum(['future', 'option', 'spot']).optional().describe('Instrument kind filter'),
+        count: z.number().optional().describe("Number of orders to retrieve (default: 100)"),
+        offset: z.number().optional().describe("Offset for pagination (default: 0)"),
+      }
+    },
+    async ({ currency, kind, count, offset }) => {
+      try {
+        const result = await getClient().getOrderHistory(
+          currency,
+          kind || null,
+          count || 100,
+          offset || 0
+        );
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `Error: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get user trades
+  server.registerTool(
+    'get_user_trades',
+    {
+      description: '[REQUIRES AUTH] Get trade history for the authenticated user.',
+      inputSchema: {
+        currency: z.string().describe("Currency (e.g., 'BTC', 'ETH')"),
+        kind: z.enum(['future', 'option', 'spot']).optional().describe('Instrument kind filter'),
+        count: z.number().optional().describe("Number of trades to retrieve (default: 100)"),
+        include_old: z.boolean().optional().describe("Include old trades (default: false)"),
+      }
+    },
+    async ({ currency, kind, count, include_old }) => {
+      try {
+        const result = await getClient().getUserTrades(
+          currency,
+          kind || null,
+          count || 100,
+          include_old || false
+        );
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `Error: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get subaccounts
+  server.registerTool(
+    'get_subaccounts',
+    {
+      description: '[REQUIRES AUTH] Get list of subaccounts.',
+      inputSchema: {
+        with_portfolio: z.boolean().optional().describe("Include portfolio information (default: false)"),
+      }
+    },
+    async ({ with_portfolio }) => {
+      try {
+        const result = await getClient().getSubaccounts(with_portfolio || false);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `Error: ${error.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+}
+
+/**
  * Create a standalone MCP server instance for stdio mode
  * Used for local testing with MCP clients via stdin/stdout
  */

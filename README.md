@@ -1,12 +1,38 @@
 # Deribit MCP Server
 
-An MCP (Model Context Protocol) server that provides access to Deribit's public API endpoints for cryptocurrency market data.
+An MCP (Model Context Protocol) server that provides access to Deribit's cryptocurrency exchange API for market data and account management.
 
 ## Features
 
-This MCP server exposes the following tools for accessing Deribit market data:
+This MCP server provides access to both **public market data** and **private account endpoints** (with authentication).
 
-### Single-Instrument Tools
+### Authentication
+
+**🔓 Public tools** work without authentication, but may encounter rate limits since Cloudflare Workers share IP addresses.
+
+**🔑 Authenticated requests** have much higher rate limits and unlock private API access.
+
+**To authenticate:**
+1. Create read-only API keys at https://www.deribit.com/account/BTC/api
+2. Use the `set_deribit_credentials` tool with your Client ID and Client Secret
+3. Choose `test` environment for testing with fake money, or `production` for real trading
+
+This MCP server exposes the following tools:
+
+### Authentication & Account Tools
+- **set_deribit_credentials** - Set API credentials to avoid rate limits and access private endpoints
+- **get_auth_status** - Check authentication status and environment
+- **get_account_summary** - Get account balance and margin information (requires auth)
+- **get_positions** - Get current open positions (requires auth)
+- **get_open_orders** - Get active orders (requires auth)
+- **get_order_history** - Get historical order data (requires auth)
+- **get_user_trades** - Get your trade history (requires auth)
+- **get_subaccounts** - List subaccounts (requires auth)
+- **cancel_all_orders** - Emergency cancel all orders (requires auth)
+
+### Public Market Data Tools
+
+#### Single-Instrument Tools
 - **getTicker** - Get current ticker information (prices, volume, bid/ask spreads)
 - **getOrderBook** - Retrieve order book with bids and asks
 - **getIndexPrice** - Get current index price for a currency
@@ -20,13 +46,13 @@ This MCP server exposes the following tools for accessing Deribit market data:
 - **getBookSummaryByInstrument** - Get detailed summary for a specific instrument
 - **getTradingviewChartData** - Get OHLCV chart data
 
-### Multi-Instrument Tools (Batch Queries)
+#### Multi-Instrument Tools (Batch Queries)
 - **getTickers** - Get ticker data for multiple instruments (single WebSocket) ⚡
 - **getOrderBooks** - Get order books for multiple instruments (parallel)
 - **getIndexPrices** - Get index prices for multiple indices (parallel)
 - **getOptionsChains** - Get options chains for multiple expiries (single WebSocket) ⚡
 
-### Volatility & Analytics
+#### Volatility & Analytics
 - **getVolatilityIndexData** - Get DVOL volatility index data
 - **getHistoricalVolatility** - Get historical volatility calculations
 - **getCombos** - Get combo instruments (multi-leg strategies)
@@ -243,6 +269,140 @@ npx @modelcontextprotocol/inspector node src/stdio.js
 ```
 
 ## Available Tools
+
+### set_deribit_credentials
+Set your Deribit API credentials to avoid rate limits and unlock private account endpoints.
+
+**Why authenticate?**
+- Public tools work without auth, but Cloudflare Workers share IP addresses causing frequent rate limit errors (429)
+- Authenticated requests have much higher rate limits and won't hit these errors
+- Access private endpoints for account info, positions, orders, and trade history
+
+**Parameters:**
+- `client_id` (required): Your Deribit API Client ID
+- `client_secret` (required): Your Deribit API Client Secret
+- `environment` (required): "test" (fake money for testing) or "production" (real trading)
+
+**Example:**
+```json
+{
+  "client_id": "your_client_id_here",
+  "client_secret": "your_client_secret_here",
+  "environment": "test"
+}
+```
+
+**Get API keys:** https://www.deribit.com/account/BTC/api
+
+Recommended scopes: `account:read`, `trade:read` (no write permissions needed unless trading)
+
+### get_auth_status
+Check if the MCP server is authenticated with Deribit and which environment it's connected to.
+
+**Parameters:** None
+
+**Output:** JSON object with authentication status, environment, and token validity.
+
+### get_account_summary
+Get account balance, margin, and equity information. Requires authentication.
+
+**Parameters:**
+- `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
+- `extended` (optional): Include additional fields (default: false)
+
+**Example:**
+```json
+{
+  "currency": "BTC",
+  "extended": true
+}
+```
+
+### get_positions
+Get current open positions across all instruments. Requires authentication.
+
+**Parameters:**
+- `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
+- `kind` (optional): Instrument kind ("future", "option", "spot")
+
+**Example:**
+```json
+{
+  "currency": "BTC",
+  "kind": "future"
+}
+```
+
+### get_open_orders
+Get all active orders. Requires authentication.
+
+**Parameters:**
+- `currency` (optional): Filter by currency (e.g., "BTC", "ETH")
+- `kind` (optional): Filter by instrument kind ("future", "option", "spot")
+- `type` (optional): Filter by order type ("limit", "market", "stop_limit", "stop_market")
+
+**Example:**
+```json
+{
+  "currency": "BTC",
+  "kind": "future"
+}
+```
+
+### get_order_history
+Get historical order data. Requires authentication.
+
+**Parameters:**
+- `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
+- `kind` (optional): Instrument kind ("future", "option", "spot")
+- `count` (optional): Number of results (default: 20)
+- `offset` (optional): Offset for pagination
+
+**Example:**
+```json
+{
+  "currency": "ETH",
+  "kind": "option",
+  "count": 50
+}
+```
+
+### get_user_trades
+Get your trade history. Requires authentication.
+
+**Parameters:**
+- `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
+- `kind` (optional): Instrument kind ("future", "option", "spot")
+- `count` (optional): Number of results (default: 10)
+- `includeOld` (optional): Include old trades (default: false)
+
+**Example:**
+```json
+{
+  "currency": "BTC",
+  "count": 100
+}
+```
+
+### get_subaccounts
+List all subaccounts. Requires authentication.
+
+**Parameters:**
+- `withPortfolio` (optional): Include portfolio data (default: false)
+
+**Example:**
+```json
+{
+  "withPortfolio": true
+}
+```
+
+### cancel_all_orders
+**⚠️ EMERGENCY TOOL** - Cancel all open orders across all instruments. Requires authentication.
+
+Use this tool to quickly exit all positions in emergency situations.
+
+**Parameters:** None (cancels ALL orders)
 
 ### getOptionsChain ⚡
 
