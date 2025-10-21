@@ -25,3 +25,8 @@ routes = [
 # Preview environment (PRs only) - gets workers.dev URL
 [env.preview]
 name = "deribit-mcp-preview"
+
+# Optional: Default Deribit API credentials
+# Set these as secrets via: wrangler secret put DERIBIT_CLIENT_ID
+# DERIBIT_CLIENT_ID and DERIBIT_CLIENT_SECRET should be set as secrets, not vars
+# DERIBIT_ENVIRONMENT defaults to "production" (set to "test" if needed for testing)
