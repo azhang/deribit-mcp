@@ -417,7 +417,7 @@ export class DeribitClient {
         wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
       }
 
-      this.wsClient = new WebSocketClient(wsUrl);
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
       await this.wsClient.connect();
     }
 
@@ -510,7 +510,7 @@ export class DeribitClient {
         wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
       }
 
-      this.wsClient = new WebSocketClient(wsUrl);
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
       await this.wsClient.connect();
     }
 
@@ -616,7 +616,7 @@ export class DeribitClient {
         wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
       }
 
-      this.wsClient = new WebSocketClient(wsUrl);
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
       await this.wsClient.connect();
     }
 

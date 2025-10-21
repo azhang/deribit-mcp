@@ -3,7 +3,7 @@
  */
 
 export class WebSocketClient {
-  constructor(baseUrl = 'wss://www.deribit.com/ws/api/v2') {
+  constructor(baseUrl = 'wss://www.deribit.com/ws/api/v2', clientId = null, clientSecret = null) {
     // Convert HTTP base URL to WebSocket if needed
     if (baseUrl.startsWith('http')) {
       baseUrl = baseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
@@ -18,6 +18,10 @@ export class WebSocketClient {
     this._pendingResponses = new Map();
     this._subscriptions = new Map();
     this._receiveTask = null;
+    this.clientId = clientId;
+    this.clientSecret = clientSecret;
+    this.accessToken = null;
+    this.authenticated = false;
   }
 
   _nextId() {
@@ -53,7 +57,33 @@ export class WebSocketClient {
       client_version: '0.1.0'
     });
 
+    // Authenticate if credentials are provided
+    if (this.clientId && this.clientSecret) {
+      await this.authenticate();
+    }
+
     console.error('WebSocket connected and handshake completed');
+  }
+
+  /**
+   * Authenticate the WebSocket connection using client credentials.
+   * After authentication, the server remembers the token for this connection.
+   */
+  async authenticate() {
+    if (this.authenticated) {
+      return; // Already authenticated
+    }
+
+    console.error('Authenticating WebSocket connection...');
+    const result = await this._call('public/auth', {
+      grant_type: 'client_credentials',
+      client_id: this.clientId,
+      client_secret: this.clientSecret
+    });
+
+    this.accessToken = result.access_token;
+    this.authenticated = true;
+    console.error('WebSocket authenticated successfully');
   }
 
   /**
