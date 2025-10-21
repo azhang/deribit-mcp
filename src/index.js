@@ -18,8 +18,12 @@ export class DeribitMCP extends McpAgent {
     version: "0.5.0",
     instructions: `Deribit cryptocurrency exchange MCP server for market data and trading.
 
-💡 TIP: If you get rate limit errors, use 'set_deribit_credentials' to authenticate.
-Cloudflare Workers share IP addresses, so authenticated requests have much higher rate limits.
+💡 Authentication:
+- Default credentials can be set via environment variables (DERIBIT_CLIENT_ID, DERIBIT_CLIENT_SECRET, DERIBIT_ENVIRONMENT)
+- Users can override defaults with 'set_deribit_credentials' tool (persists to their session)
+- Without authentication, public endpoints work but have lower rate limits
+- Cloudflare Workers share IP addresses, so authenticated requests have much higher rate limits
+
 Get free read-only API keys at: https://www.deribit.com/account/BTC/api`,
   });
 
@@ -50,8 +54,21 @@ Get free read-only API keys at: https://www.deribit.com/account/BTC/api`,
 
   getClient() {
     if (this.#client === null) {
-      // Start with public API client (default to test environment)
-      this.#client = new DeribitClient('https://test.deribit.com/api/v2');
+      // Check for default credentials in environment variables
+      const defaultClientId = this.env.DERIBIT_CLIENT_ID;
+      const defaultClientSecret = this.env.DERIBIT_CLIENT_SECRET;
+      const defaultEnv = this.env.DERIBIT_ENVIRONMENT || 'production';
+
+      const baseUrl = defaultEnv === 'production'
+        ? 'https://www.deribit.com/api/v2'
+        : 'https://test.deribit.com/api/v2';
+
+      // Initialize client with default credentials if available
+      this.#client = new DeribitClient(
+        baseUrl,
+        defaultClientId || null,
+        defaultClientSecret || null
+      );
     }
     return this.#client;
   }

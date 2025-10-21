@@ -12,10 +12,25 @@ This MCP server provides access to both **public market data** and **private acc
 
 **🔑 Authenticated requests** have much higher rate limits and unlock private API access.
 
-**To authenticate:**
-1. Create read-only API keys at https://www.deribit.com/account/BTC/api
-2. Use the `set_deribit_credentials` tool with your Client ID and Client Secret
-3. Choose `test` environment for testing with fake money, or `production` for real trading
+**Authentication Options:**
+
+1. **Default Credentials (Environment Variables)** - For server-wide defaults:
+   ```bash
+   # Set via wrangler secrets (recommended for production)
+   wrangler secret put DERIBIT_CLIENT_ID
+   wrangler secret put DERIBIT_CLIENT_SECRET
+
+   # DERIBIT_ENVIRONMENT defaults to "production"
+   # Set to "test" in wrangler.toml only if needed for testing:
+   [vars]
+   DERIBIT_ENVIRONMENT = "test"
+   ```
+
+2. **Per-User Credentials** - Users can override defaults:
+   - Create read-only API keys at https://www.deribit.com/account/BTC/api
+   - Use the `set_deribit_credentials` tool with your Client ID and Client Secret
+   - Choose `test` environment for testing with fake money, or `production` for real trading
+   - Credentials persist to your session and override any server defaults
 
 This MCP server exposes the following tools:
 
