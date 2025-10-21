@@ -134,6 +134,13 @@ export class DeribitClient {
   async _call(method, params = {}) {
     const url = new URL(`${this.baseUrl}/public/${method}`);
 
+    // If we have credentials, authenticate to get higher rate limits
+    if (this.clientId && this.clientSecret) {
+      await this.authenticate();
+      // Add access token to params for authenticated requests
+      params = { ...params, access_token: this.accessToken };
+    }
+
     // Add query parameters
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
@@ -164,7 +171,7 @@ export class DeribitClient {
           if (response.status === 429) {
             const authTip = !this.clientId ?
               "\n\n💡 TIP: Use 'set_deribit_credentials' to authenticate. Authenticated requests have much higher rate limits and won't hit this error." :
-              "";
+              "\n\n⚠️  You are authenticated but still being rate limited. This may indicate an issue with your credentials or Deribit's rate limits.";
             throw new Error(`Rate limited by Deribit API (429). Cloudflare Workers share IP addresses, causing frequent rate limits on public endpoints.${authTip}`);
           }
           throw new Error(`HTTP error! status: ${response.status}`);
