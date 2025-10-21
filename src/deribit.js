@@ -134,13 +134,6 @@ export class DeribitClient {
   async _call(method, params = {}) {
     const url = new URL(`${this.baseUrl}/public/${method}`);
 
-    // If we have credentials, authenticate to get higher rate limits
-    if (this.clientId && this.clientSecret) {
-      await this.authenticate();
-      // Add access token to params for authenticated requests
-      params = { ...params, access_token: this.accessToken };
-    }
-
     // Add query parameters
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
@@ -156,15 +149,22 @@ export class DeribitClient {
       return cached.data;
     }
 
+    // Prepare headers
+    const headers = {
+      'User-Agent': 'deribit-mcp/0.4.0'
+    };
+
+    // If we have credentials, authenticate and add Authorization header for higher rate limits
+    if (this.clientId && this.clientSecret) {
+      await this.authenticate();
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    }
+
     // Retry logic for network issues
     let lastError;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const response = await fetch(urlString, {
-          headers: {
-            'User-Agent': 'deribit-mcp/0.4.0'
-          }
-        });
+        const response = await fetch(urlString, { headers });
 
         if (!response.ok) {
           // Don't retry on rate limits - throw immediately with helpful message
@@ -220,13 +220,8 @@ export class DeribitClient {
 
     const url = new URL(`${this.baseUrl}/private/${method}`);
 
-    // Add access token and other parameters
-    const allParams = {
-      ...params,
-      access_token: this.accessToken
-    };
-
-    for (const [key, value] of Object.entries(allParams)) {
+    // Add parameters (NOT the access token - that goes in the header)
+    for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
         url.searchParams.append(key, value);
       }
@@ -237,7 +232,8 @@ export class DeribitClient {
     try {
       const response = await fetch(urlString, {
         headers: {
-          'User-Agent': 'deribit-mcp/0.4.0'
+          'User-Agent': 'deribit-mcp/0.4.0',
+          'Authorization': `Bearer ${this.accessToken}`
         }
       });
 
@@ -246,14 +242,16 @@ export class DeribitClient {
         if (response.status === 401 && this.refreshToken) {
           console.log('Access token expired, refreshing...');
           await this.refreshAccessToken();
-          // Update URL with new token
-          url.searchParams.set('access_token', this.accessToken);
-          const retryResponse = await fetch(url.toString(), {
+          // Retry with new token in Authorization header
+          const retryResponse = await fetch(urlString, {
             headers: {
-              'User-Agent': 'deribit-mcp/0.4.0'
+              'User-Agent': 'deribit-mcp/0.4.0',
+              'Authorization': `Bearer ${this.accessToken}`
             }
           });
           if (!retryResponse.ok) {
+            const retryText = await retryResponse.text();
+            console.error('Retry failed with response:', retryText);
             throw new Error(`HTTP error! status: ${retryResponse.status}`);
           }
           const retryData = await retryResponse.json();
@@ -266,7 +264,11 @@ export class DeribitClient {
         if (response.status === 429) {
           throw new Error(`Rate limited by Deribit API. Please try again in a few seconds.`);
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+
+        // Log the response body for debugging 400 errors
+        const errorText = await response.text();
+        console.error(`HTTP ${response.status} response:`, errorText);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
 
       const data = await response.json();
