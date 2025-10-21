@@ -62,7 +62,10 @@ export class DeribitClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+      if (response.status === 429) {
+        throw new Error(`Rate limited by Deribit API (429) on endpoint: /public/auth. Authentication endpoint is being rate limited. Please try again in a few seconds.`);
+      }
+      throw new Error(`Authentication failed on /public/auth: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -98,7 +101,10 @@ export class DeribitClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`);
+      if (response.status === 429) {
+        throw new Error(`Rate limited by Deribit API (429) on endpoint: /public/auth (refresh token). Token refresh endpoint is being rate limited. Please try again in a few seconds.`);
+      }
+      throw new Error(`Token refresh failed on /public/auth: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -179,7 +185,7 @@ export class DeribitClient {
             const authTip = !this.clientId ?
               "\n\n💡 TIP: Use 'set_deribit_credentials' to authenticate. Authenticated requests have much higher rate limits and won't hit this error." :
               "\n\n⚠️  You are authenticated but still being rate limited. This may indicate an issue with your credentials or Deribit's rate limits.";
-            throw new Error(`Rate limited by Deribit API (429). Cloudflare Workers share IP addresses, causing frequent rate limits on public endpoints.${authTip}`);
+            throw new Error(`Rate limited by Deribit API (429) on endpoint: /public/${method}. Cloudflare Workers share IP addresses, causing frequent rate limits on public endpoints.${authTip}`);
           }
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -269,7 +275,7 @@ export class DeribitClient {
         }
 
         if (response.status === 429) {
-          throw new Error(`Rate limited by Deribit API. Please try again in a few seconds.`);
+          throw new Error(`Rate limited by Deribit API (429) on endpoint: /private/${method}. Please try again in a few seconds.`);
         }
 
         // Log the response body for debugging 400 errors
