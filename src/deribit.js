@@ -10,19 +10,16 @@ import { WebSocketClient } from './ws-client.js';
 import { filterInstrumentsByExpiry, buildOptionsChainCSV } from './options.js';
 
 export class DeribitClient {
-  constructor(baseUrl = 'https://www.deribit.com/api/v2', clientId = null, clientSecret = null, accessToken = null, refreshToken = null) {
+  constructor(baseUrl = 'https://www.deribit.com/api/v2', clientId = null, clientSecret = null) {
     this.baseUrl = baseUrl;
     this.wsClient = null;
     // Simple in-memory cache with TTL
     this.cache = new Map();
     this.cacheTTL = 2000; // 2 second cache for market data
 
-    // Authentication credentials
+    // Authentication credentials for Basic Auth
     this.clientId = clientId;
     this.clientSecret = clientSecret;
-    this.accessToken = accessToken;
-    this.refreshToken = refreshToken;
-    this.tokenExpiry = null;
   }
 
   /**
