@@ -27,7 +27,7 @@ export class DeribitClient {
 
   /**
    * Create Basic Auth header (base64 encoded client_id:client_secret)
-   * Used for private endpoints to avoid /public/auth endpoint which can get 429 rate limited
+   * Used for all HTTP requests to avoid /public/auth endpoint which can get 429 rate limited
    */
   _createBasicAuthHeader() {
     if (!this.clientId || !this.clientSecret) {
@@ -36,102 +36,6 @@ export class DeribitClient {
     const credentials = `${this.clientId}:${this.clientSecret}`;
     const base64Credentials = btoa(credentials);
     return `Basic ${base64Credentials}`;
-  }
-
-  /**
-   * Authenticate with Deribit API to get access token for public endpoints
-   * Note: This still uses /public/auth which can get 429 rate limited
-   */
-  async authenticate() {
-    if (!this.clientId || !this.clientSecret) {
-      throw new Error('Client ID and Client Secret are required for authentication');
-    }
-
-    // If we have a valid token, use it
-    if (this.accessToken && this.tokenExpiry && this.tokenExpiry > Date.now()) {
-      return this.accessToken;
-    }
-
-    // Try to refresh token if we have one
-    if (this.refreshToken && this.tokenExpiry && this.tokenExpiry <= Date.now()) {
-      try {
-        await this.refreshAccessToken();
-        return this.accessToken;
-      } catch (error) {
-        console.error('Token refresh failed, re-authenticating:', error.message);
-      }
-    }
-
-    // Authenticate with client credentials
-    const response = await fetch(
-      `${this.baseUrl}/public/auth?` +
-      `grant_type=client_credentials&` +
-      `client_id=${encodeURIComponent(this.clientId)}&` +
-      `client_secret=${encodeURIComponent(this.clientSecret)}`,
-      {
-        headers: {
-          'User-Agent': 'deribit-mcp/0.4.0'
-        }
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error(`Rate limited by Deribit API (429) on endpoint: /public/auth. Authentication endpoint is being rate limited. Please try again in a few seconds.`);
-      }
-      throw new Error(`Authentication failed on /public/auth: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(`Authentication error: ${data.error.message}`);
-    }
-
-    const result = data.result;
-    this.accessToken = result.access_token;
-    this.refreshToken = result.refresh_token;
-    this.tokenExpiry = Date.now() + (result.expires_in * 1000) - 60000; // Expire 1 minute early
-
-    return this.accessToken;
-  }
-
-  /**
-   * Refresh the access token using the refresh token
-   */
-  async refreshAccessToken() {
-    if (!this.refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
-    const response = await fetch(
-      `${this.baseUrl}/public/auth?` +
-      `grant_type=refresh_token&` +
-      `refresh_token=${encodeURIComponent(this.refreshToken)}`,
-      {
-        headers: {
-          'User-Agent': 'deribit-mcp/0.4.0'
-        }
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error(`Rate limited by Deribit API (429) on endpoint: /public/auth (refresh token). Token refresh endpoint is being rate limited. Please try again in a few seconds.`);
-      }
-      throw new Error(`Token refresh failed on /public/auth: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(`Token refresh error: ${data.error.message}`);
-    }
-
-    const result = data.result;
-    this.accessToken = result.access_token;
-    this.refreshToken = result.refresh_token;
-    this.tokenExpiry = Date.now() + (result.expires_in * 1000) - 60000; // Expire 1 minute early
-
-    return this.accessToken;
   }
 
   /**
@@ -154,13 +58,6 @@ export class DeribitClient {
   async _call(method, params = {}) {
     const url = new URL(`${this.baseUrl}/public/${method}`);
 
-    // If we have credentials, authenticate to get higher rate limits
-    if (this.clientId && this.clientSecret) {
-      await this.authenticate();
-      // Add access token to params for authenticated requests
-      params = { ...params, access_token: this.accessToken };
-    }
-
     // Add query parameters
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
@@ -180,6 +77,11 @@ export class DeribitClient {
     const headers = {
       'User-Agent': 'deribit-mcp/0.4.0'
     };
+
+    // Use Basic Auth for all HTTP requests to avoid /public/auth endpoint
+    if (this.clientId && this.clientSecret) {
+      headers['Authorization'] = this._createBasicAuthHeader();
+    }
 
     // Retry logic for network issues
     let lastError;
@@ -252,7 +154,7 @@ export class DeribitClient {
       'User-Agent': 'deribit-mcp/0.4.0'
     };
 
-    // Use Basic Auth to avoid /public/auth endpoint rate limits
+    // Use Basic Auth for all HTTP requests to avoid /public/auth endpoint
     if (this.clientId && this.clientSecret) {
       headers['Authorization'] = this._createBasicAuthHeader();
     }
