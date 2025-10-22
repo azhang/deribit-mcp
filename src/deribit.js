@@ -23,6 +23,80 @@ export class DeribitClient {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
     this.tokenExpiry = null;
+
+    // Authentication method: 'bearer', 'basic', or 'hmac'
+    // 'bearer' uses /public/auth endpoint (can be rate-limited)
+    // 'basic' uses Basic Auth header (avoids /public/auth endpoint)
+    // 'hmac' uses HMAC signature (avoids /public/auth endpoint)
+    this.authMethod = 'basic'; // Default to basic auth to avoid /public/auth rate limits
+  }
+
+  /**
+   * Create Basic Auth header (base64 encoded client_id:client_secret)
+   */
+  _createBasicAuthHeader() {
+    if (!this.clientId || !this.clientSecret) {
+      throw new Error('Client ID and Client Secret are required for Basic Auth');
+    }
+    const credentials = `${this.clientId}:${this.clientSecret}`;
+    const base64Credentials = btoa(credentials);
+    return `Basic ${base64Credentials}`;
+  }
+
+  /**
+   * Create HMAC signature for authentication
+   * @param {string} timestamp - Request timestamp in milliseconds
+   * @param {string} nonce - Random nonce string
+   * @param {string} method - HTTP method (GET, POST, etc.)
+   * @param {string} uri - Request URI path
+   * @param {string} body - Request body (empty string for GET)
+   */
+  async _createHmacSignature(timestamp, nonce, method, uri, body = '') {
+    if (!this.clientSecret) {
+      throw new Error('Client Secret is required for HMAC Auth');
+    }
+
+    // Signature string format: timestamp\nnonce\nmethod\nuri\nbody
+    const signatureString = `${timestamp}\n${nonce}\n${method}\n${uri}\n${body}`;
+
+    // Use Web Crypto API for HMAC-SHA256
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(this.clientSecret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+
+    const signature = await crypto.subtle.sign(
+      'HMAC',
+      key,
+      encoder.encode(signatureString)
+    );
+
+    // Convert to hex string
+    return Array.from(new Uint8Array(signature))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  /**
+   * Create HMAC auth header
+   * @param {string} method - HTTP method
+   * @param {string} uri - Request URI
+   * @param {string} body - Request body
+   */
+  async _createHmacAuthHeader(method, uri, body = '') {
+    if (!this.clientId || !this.clientSecret) {
+      throw new Error('Client ID and Client Secret are required for HMAC Auth');
+    }
+
+    const timestamp = Date.now().toString();
+    const nonce = crypto.randomUUID();
+    const signature = await this._createHmacSignature(timestamp, nonce, method, uri, body);
+
+    return `deri-hmac-sha256 id=${this.clientId},ts=${timestamp},nonce=${nonce},sig=${signature}`;
   }
 
   /**
@@ -121,6 +195,19 @@ export class DeribitClient {
   }
 
   /**
+   * Set the authentication method
+   * @param {string} method - 'bearer', 'basic', or 'hmac'
+   */
+  setAuthMethod(method) {
+    const validMethods = ['bearer', 'basic', 'hmac'];
+    if (!validMethods.includes(method)) {
+      throw new Error(`Invalid auth method: ${method}. Must be one of: ${validMethods.join(', ')}`);
+    }
+    this.authMethod = method;
+    console.error(`Authentication method set to: ${method}`);
+  }
+
+  /**
    * Close both HTTP and WebSocket clients.
    */
   async close() {
@@ -167,10 +254,20 @@ export class DeribitClient {
       'User-Agent': 'deribit-mcp/0.4.0'
     };
 
-    // If we have credentials, authenticate and add Authorization header for higher rate limits
+    // If we have credentials, add appropriate authentication header
     if (this.clientId && this.clientSecret) {
-      await this.authenticate();
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
+      if (this.authMethod === 'basic') {
+        // Basic Auth: avoids /public/auth endpoint
+        headers['Authorization'] = this._createBasicAuthHeader();
+      } else if (this.authMethod === 'hmac') {
+        // HMAC Auth: avoids /public/auth endpoint
+        const uri = new URL(urlString).pathname + new URL(urlString).search;
+        headers['Authorization'] = await this._createHmacAuthHeader('GET', uri, '');
+      } else {
+        // Bearer token: uses /public/auth endpoint (default fallback)
+        await this.authenticate();
+        headers['Authorization'] = `Bearer ${this.accessToken}`;
+      }
     }
 
     // Retry logic for network issues
@@ -228,12 +325,9 @@ export class DeribitClient {
    * @returns {Promise<any>} The result from the API response
    */
   async _callPrivate(method, params = {}) {
-    // Ensure we have an access token
-    await this.authenticate();
-
     const url = new URL(`${this.baseUrl}/private/${method}`);
 
-    // Add parameters (NOT the access token - that goes in the header)
+    // Add parameters
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
         url.searchParams.append(key, value);
@@ -242,26 +336,37 @@ export class DeribitClient {
 
     const urlString = url.toString();
 
+    // Prepare headers with appropriate authentication
+    const headers = {
+      'User-Agent': 'deribit-mcp/0.4.0'
+    };
+
+    if (this.authMethod === 'basic') {
+      headers['Authorization'] = this._createBasicAuthHeader();
+    } else if (this.authMethod === 'hmac') {
+      const uri = new URL(urlString).pathname + new URL(urlString).search;
+      headers['Authorization'] = await this._createHmacAuthHeader('GET', uri, '');
+    } else {
+      // Bearer token mode
+      await this.authenticate();
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    }
+
     try {
-      const response = await fetch(urlString, {
-        headers: {
-          'User-Agent': 'deribit-mcp/0.4.0',
-          'Authorization': `Bearer ${this.accessToken}`
-        }
-      });
+      const response = await fetch(urlString, { headers });
 
       if (!response.ok) {
-        // If we get 401, try to refresh token and retry once
-        if (response.status === 401 && this.refreshToken) {
+        // If we get 401 with Bearer token auth, try to refresh token and retry once
+        if (response.status === 401 && this.authMethod === 'bearer' && this.refreshToken) {
           console.log('Access token expired, refreshing...');
           await this.refreshAccessToken();
-          // Retry with new token in Authorization header
-          const retryResponse = await fetch(urlString, {
-            headers: {
-              'User-Agent': 'deribit-mcp/0.4.0',
-              'Authorization': `Bearer ${this.accessToken}`
-            }
-          });
+
+          const retryHeaders = {
+            'User-Agent': 'deribit-mcp/0.4.0',
+            'Authorization': `Bearer ${this.accessToken}`
+          };
+
+          const retryResponse = await fetch(urlString, { headers: retryHeaders });
           if (!retryResponse.ok) {
             const retryText = await retryResponse.text();
             console.error('Retry failed with response:', retryText);
@@ -430,7 +535,7 @@ export class DeribitClient {
         wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
       }
 
-      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret, this.authMethod);
       await this.wsClient.connect();
     }
 
@@ -523,7 +628,7 @@ export class DeribitClient {
         wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
       }
 
-      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret, this.authMethod);
       await this.wsClient.connect();
     }
 
@@ -629,7 +734,7 @@ export class DeribitClient {
         wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
       }
 
-      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret, this.authMethod);
       await this.wsClient.connect();
     }
 

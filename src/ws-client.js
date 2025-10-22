@@ -3,7 +3,7 @@
  */
 
 export class WebSocketClient {
-  constructor(baseUrl = 'wss://www.deribit.com/ws/api/v2', clientId = null, clientSecret = null) {
+  constructor(baseUrl = 'wss://www.deribit.com/ws/api/v2', clientId = null, clientSecret = null, authMethod = 'basic') {
     // Convert HTTP base URL to WebSocket if needed
     if (baseUrl.startsWith('http')) {
       baseUrl = baseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
@@ -22,6 +22,8 @@ export class WebSocketClient {
     this.clientSecret = clientSecret;
     this.accessToken = null;
     this.authenticated = false;
+    // Authentication method: 'bearer', 'basic', or 'hmac'
+    this.authMethod = authMethod;
   }
 
   _nextId() {
@@ -66,7 +68,9 @@ export class WebSocketClient {
   }
 
   /**
-   * Authenticate the WebSocket connection using client credentials.
+   * Authenticate the WebSocket connection.
+   * For 'bearer' mode: uses public/auth endpoint to get a token
+   * For 'basic' or 'hmac': uses public/auth with credentials in the method call
    * After authentication, the server remembers the token for this connection.
    */
   async authenticate() {
@@ -74,16 +78,32 @@ export class WebSocketClient {
       return; // Already authenticated
     }
 
-    console.error('Authenticating WebSocket connection...');
-    const result = await this._call('public/auth', {
-      grant_type: 'client_credentials',
-      client_id: this.clientId,
-      client_secret: this.clientSecret
-    });
+    console.error(`Authenticating WebSocket connection using ${this.authMethod} method...`);
 
-    this.accessToken = result.access_token;
-    this.authenticated = true;
-    console.error('WebSocket authenticated successfully');
+    if (this.authMethod === 'basic' || this.authMethod === 'hmac') {
+      // For Basic and HMAC auth, we authenticate via public/auth with credentials
+      // This avoids the HTTP /public/auth endpoint while still getting a session token
+      const result = await this._call('public/auth', {
+        grant_type: 'client_credentials',
+        client_id: this.clientId,
+        client_secret: this.clientSecret
+      });
+
+      this.accessToken = result.access_token;
+      this.authenticated = true;
+      console.error('WebSocket authenticated successfully with session token');
+    } else {
+      // Bearer token mode - authenticate via WebSocket
+      const result = await this._call('public/auth', {
+        grant_type: 'client_credentials',
+        client_id: this.clientId,
+        client_secret: this.clientSecret
+      });
+
+      this.accessToken = result.access_token;
+      this.authenticated = true;
+      console.error('WebSocket authenticated successfully');
+    }
   }
 
   /**
