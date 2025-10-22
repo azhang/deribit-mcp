@@ -36,7 +36,7 @@ export class WebSocketClient {
       return; // Already connected
     }
 
-    console.error(`Connecting to ${this.wsUrl}`);
+    console.log(`Connecting to ${this.wsUrl}`);
     this.ws = new WebSocket(this.wsUrl);
 
     // Wait for connection to open
@@ -62,7 +62,7 @@ export class WebSocketClient {
       await this.authenticate();
     }
 
-    console.error('WebSocket connected and handshake completed');
+    console.log('WebSocket connected and handshake completed');
   }
 
   /**
@@ -79,7 +79,7 @@ export class WebSocketClient {
       return; // Already authenticated
     }
 
-    console.error('Authenticating WebSocket connection...');
+    console.log('Authenticating WebSocket connection...');
     const result = await this._call('public/auth', {
       grant_type: 'client_credentials',
       client_id: this.clientId,
@@ -88,7 +88,7 @@ export class WebSocketClient {
 
     this.accessToken = result.access_token;
     this.authenticated = true;
-    console.error('WebSocket authenticated successfully');
+    console.log('WebSocket authenticated successfully');
   }
 
   /**
@@ -98,7 +98,7 @@ export class WebSocketClient {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
-      console.error('WebSocket connection closed');
+      console.log('WebSocket connection closed');
     }
   }
 
@@ -153,11 +153,11 @@ export class WebSocketClient {
 
       if (heartbeatType === 'test_request') {
         // Server is testing if we're alive - MUST respond with public/test
-        console.error('Received test_request heartbeat, responding with public/test');
+        console.log('Received test_request heartbeat, responding with public/test');
         this._call('public/test', {}).catch(err => console.error('Failed to respond to heartbeat:', err));
       } else {
         // Regular heartbeat - no response needed
-        console.error('Received heartbeat from server');
+        console.log('Received heartbeat from server');
       }
       return;
     }
@@ -169,7 +169,7 @@ export class WebSocketClient {
 
       // Store subscription data
       this._subscriptions.set(channel, subscriptionData);
-      console.error(`Received subscription update for ${channel}`);
+      console.log(`Received subscription update for ${channel}`);
       return;
     }
 
@@ -201,9 +201,27 @@ export class WebSocketClient {
   async subscribeTickers(instrumentNames) {
     const channels = instrumentNames.map(name => `incremental_ticker.${name}`);
 
-    console.error(`Subscribing to ${channels.length} ticker channels`);
+    console.log(`Subscribing to ${channels.length} ticker channels`);
     const result = await this._call('public/subscribe', { channels });
-    console.error(`Subscribed to ${result.length} channels`);
+    console.log(`Subscribed to ${result.length} channels`);
+  }
+
+  /**
+   * Unsubscribe from ticker updates for multiple instruments.
+   *
+   * @param {Array<string>} instrumentNames - List of instrument names to unsubscribe from
+   */
+  async unsubscribeTickers(instrumentNames) {
+    const channels = instrumentNames.map(name => `incremental_ticker.${name}`);
+
+    console.log(`Unsubscribing from ${channels.length} ticker channels`);
+    const result = await this._call('public/unsubscribe', { channels });
+    console.log(`Unsubscribed from ${result.length} channels`);
+
+    // Clean up subscription data
+    for (const channel of channels) {
+      this._subscriptions.delete(channel);
+    }
   }
 
   /**
@@ -218,7 +236,7 @@ export class WebSocketClient {
     const channels = new Set(instrumentNames.map(name => `incremental_ticker.${name}`));
     const startTime = Date.now();
 
-    console.error(`Waiting for ${channels.size} snapshots...`);
+    console.log(`Waiting for ${channels.size} snapshots...`);
 
     while (true) {
       // Check if we have all snapshots
@@ -232,7 +250,7 @@ export class WebSocketClient {
         for (const name of instrumentNames) {
           result[name] = this._subscriptions.get(`incremental_ticker.${name}`);
         }
-        console.error(`Received all ${Object.keys(result).length} snapshots`);
+        console.log(`Received all ${Object.keys(result).length} snapshots`);
         return result;
       }
 

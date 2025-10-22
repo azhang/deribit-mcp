@@ -321,8 +321,13 @@ export class DeribitClient {
       await this.wsClient.connect();
     }
 
-    // Subscribe and get ticker snapshots
-    return await this.wsClient.getTickerSnapshots(instrumentNames);
+    try {
+      // Subscribe and get ticker snapshots
+      return await this.wsClient.getTickerSnapshots(instrumentNames);
+    } finally {
+      // Clean up: unsubscribe from the streams
+      await this.wsClient.unsubscribeTickers(instrumentNames);
+    }
   }
 
   /**
@@ -414,32 +419,37 @@ export class DeribitClient {
       await this.wsClient.connect();
     }
 
-    // Step 4: Subscribe and get ticker snapshots for ALL instruments at once (WebSocket)
-    const allTickerData = await this.wsClient.getTickerSnapshots(allInstrumentNames);
+    try {
+      // Step 4: Subscribe and get ticker snapshots for ALL instruments at once (WebSocket)
+      const allTickerData = await this.wsClient.getTickerSnapshots(allInstrumentNames);
 
-    // Step 5: Build CSV for each expiry from the combined ticker data
-    const results = {};
-    for (const expiry of expiries) {
-      const instrumentNames = expiryToInstruments[expiry];
+      // Step 5: Build CSV for each expiry from the combined ticker data
+      const results = {};
+      for (const expiry of expiries) {
+        const instrumentNames = expiryToInstruments[expiry];
 
-      // Filter ticker data for this expiry
-      const tickerData = {};
-      for (const name of instrumentNames) {
-        if (allTickerData[name]) {
-          tickerData[name] = allTickerData[name];
+        // Filter ticker data for this expiry
+        const tickerData = {};
+        for (const name of instrumentNames) {
+          if (allTickerData[name]) {
+            tickerData[name] = allTickerData[name];
+          }
         }
+
+        results[expiry] = buildOptionsChainCSV(
+          tickerData,
+          currency,
+          expiry,
+          minStrike,
+          maxStrike
+        );
       }
 
-      results[expiry] = buildOptionsChainCSV(
-        tickerData,
-        currency,
-        expiry,
-        minStrike,
-        maxStrike
-      );
+      return results;
+    } finally {
+      // Clean up: unsubscribe from all the streams
+      await this.wsClient.unsubscribeTickers(allInstrumentNames);
     }
-
-    return results;
   }
 
   /**
@@ -520,19 +530,24 @@ export class DeribitClient {
       await this.wsClient.connect();
     }
 
-    // Step 4: Subscribe and get ticker snapshots (WebSocket)
-    const tickerData = await this.wsClient.getTickerSnapshots(instrumentNames);
+    try {
+      // Step 4: Subscribe and get ticker snapshots (WebSocket)
+      const tickerData = await this.wsClient.getTickerSnapshots(instrumentNames);
 
-    // Step 5: Build CSV from ticker data
-    const csvOutput = buildOptionsChainCSV(
-      tickerData,
-      currency,
-      expiry,
-      minStrike,
-      maxStrike
-    );
+      // Step 5: Build CSV from ticker data
+      const csvOutput = buildOptionsChainCSV(
+        tickerData,
+        currency,
+        expiry,
+        minStrike,
+        maxStrike
+      );
 
-    return csvOutput;
+      return csvOutput;
+    } finally {
+      // Clean up: unsubscribe from the streams
+      await this.wsClient.unsubscribeTickers(instrumentNames);
+    }
   }
 
   /**
