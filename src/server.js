@@ -622,9 +622,6 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
         client.clientId = client_id;
         client.clientSecret = client_secret;
 
-        // Test authentication
-        await client.authenticate();
-
         // Persist credentials to storage
         await ctx.storage.put("deribit_credentials", {
           baseUrl,
@@ -663,9 +660,6 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
         const client = getClient();
         client.clientId = null;
         client.clientSecret = null;
-        client.accessToken = null;
-        client.refreshToken = null;
-        client.tokenExpiry = null;
 
         return {
           content: [{

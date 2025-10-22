@@ -67,6 +67,11 @@ export class WebSocketClient {
 
   /**
    * Authenticate the WebSocket connection using client credentials.
+   *
+   * Note: This uses the WebSocket JSON-RPC 'public/auth' method, which is
+   * different from the HTTP /public/auth endpoint. The WebSocket method
+   * doesn't have the same rate limiting issues.
+   *
    * After authentication, the server remembers the token for this connection.
    */
   async authenticate() {
