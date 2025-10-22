@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "setup": "npm install && cp ${CONDUCTOR_ROOT_PATH:-./../..}/.dev.vars .dev.vars",
+    "run": "npm run dev"
+  }
+}
