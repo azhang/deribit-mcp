@@ -622,18 +622,12 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
         client.clientId = client_id;
         client.clientSecret = client_secret;
 
-        // Test authentication (only if using bearer mode)
-        if (client.authMethod === 'bearer') {
-          await client.authenticate();
-        }
-
         // Persist credentials to storage
         await ctx.storage.put("deribit_credentials", {
           baseUrl,
           clientId: client_id,
           clientSecret: client_secret,
-          environment,
-          authMethod: client.authMethod
+          environment
         });
 
         return {
@@ -645,62 +639,6 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
       } catch (error) {
         return {
           content: [{ type: 'text', text: `❌ Authentication failed: ${error.message}` }],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool to set authentication method
-  server.registerTool(
-    'set_auth_method',
-    {
-      description: `Set the authentication method for Deribit API requests.
-
-🔐 Authentication Methods:
-- 'basic': Uses HTTP Basic Auth (Authorization: Basic base64(client_id:client_secret))
-  ✅ Recommended - Avoids /public/auth endpoint, no 429 rate limits
-  ✅ One-step authentication
-  ⚡ Best performance
-
-- 'hmac': Uses HMAC-SHA256 signature (Authorization: deri-hmac-sha256 ...)
-  ✅ Avoids /public/auth endpoint, no 429 rate limits
-  ✅ Most secure method
-  ⚠️  Slightly more complex
-
-- 'bearer': Uses OAuth Bearer tokens (Authorization: Bearer <token>)
-  ⚠️  Requires calling /public/auth endpoint to get token
-  ⚠️  Can get 429 rate limited on /public/auth
-  ℹ️  Default for compatibility
-
-Current default is 'basic' to avoid /public/auth rate limits.`,
-      inputSchema: {
-        method: z.enum(['bearer', 'basic', 'hmac']).describe("Authentication method to use"),
-      }
-    },
-    async ({ method }) => {
-      try {
-        const client = getClient();
-        client.setAuthMethod(method);
-
-        // Persist auth method to storage
-        const credentials = await ctx.storage.get("deribit_credentials");
-        if (credentials) {
-          await ctx.storage.put("deribit_credentials", {
-            ...credentials,
-            authMethod: method
-          });
-        }
-
-        return {
-          content: [{
-            type: 'text',
-            text: `✅ Authentication method set to: ${method}`
-          }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: `Error: ${error.message}` }],
           isError: true,
         };
       }

@@ -23,16 +23,11 @@ export class DeribitClient {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
     this.tokenExpiry = null;
-
-    // Authentication method: 'bearer', 'basic', or 'hmac'
-    // 'bearer' uses /public/auth endpoint (can be rate-limited)
-    // 'basic' uses Basic Auth header (avoids /public/auth endpoint)
-    // 'hmac' uses HMAC signature (avoids /public/auth endpoint)
-    this.authMethod = 'basic'; // Default to basic auth to avoid /public/auth rate limits
   }
 
   /**
    * Create Basic Auth header (base64 encoded client_id:client_secret)
+   * Used to avoid /public/auth endpoint which can get 429 rate limited
    */
   _createBasicAuthHeader() {
     if (!this.clientId || !this.clientSecret) {
@@ -43,169 +38,6 @@ export class DeribitClient {
     return `Basic ${base64Credentials}`;
   }
 
-  /**
-   * Create HMAC signature for authentication
-   * @param {string} timestamp - Request timestamp in milliseconds
-   * @param {string} nonce - Random nonce string
-   * @param {string} method - HTTP method (GET, POST, etc.)
-   * @param {string} uri - Request URI path
-   * @param {string} body - Request body (empty string for GET)
-   */
-  async _createHmacSignature(timestamp, nonce, method, uri, body = '') {
-    if (!this.clientSecret) {
-      throw new Error('Client Secret is required for HMAC Auth');
-    }
-
-    // Signature string format: timestamp\nnonce\nmethod\nuri\nbody
-    const signatureString = `${timestamp}\n${nonce}\n${method}\n${uri}\n${body}`;
-
-    // Use Web Crypto API for HMAC-SHA256
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(this.clientSecret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-
-    const signature = await crypto.subtle.sign(
-      'HMAC',
-      key,
-      encoder.encode(signatureString)
-    );
-
-    // Convert to hex string
-    return Array.from(new Uint8Array(signature))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-  }
-
-  /**
-   * Create HMAC auth header
-   * @param {string} method - HTTP method
-   * @param {string} uri - Request URI
-   * @param {string} body - Request body
-   */
-  async _createHmacAuthHeader(method, uri, body = '') {
-    if (!this.clientId || !this.clientSecret) {
-      throw new Error('Client ID and Client Secret are required for HMAC Auth');
-    }
-
-    const timestamp = Date.now().toString();
-    const nonce = crypto.randomUUID();
-    const signature = await this._createHmacSignature(timestamp, nonce, method, uri, body);
-
-    return `deri-hmac-sha256 id=${this.clientId},ts=${timestamp},nonce=${nonce},sig=${signature}`;
-  }
-
-  /**
-   * Authenticate with Deribit API to get access token
-   */
-  async authenticate() {
-    if (!this.clientId || !this.clientSecret) {
-      throw new Error('Client ID and Client Secret are required for authentication');
-    }
-
-    // If we have a valid token, use it
-    if (this.accessToken && this.tokenExpiry && this.tokenExpiry > Date.now()) {
-      return this.accessToken;
-    }
-
-    // Try to refresh token if we have one
-    if (this.refreshToken && this.tokenExpiry && this.tokenExpiry <= Date.now()) {
-      try {
-        await this.refreshAccessToken();
-        return this.accessToken;
-      } catch (error) {
-        console.error('Token refresh failed, re-authenticating:', error.message);
-      }
-    }
-
-    // Authenticate with client credentials
-    const response = await fetch(
-      `${this.baseUrl}/public/auth?` +
-      `grant_type=client_credentials&` +
-      `client_id=${encodeURIComponent(this.clientId)}&` +
-      `client_secret=${encodeURIComponent(this.clientSecret)}`,
-      {
-        headers: {
-          'User-Agent': 'deribit-mcp/0.4.0'
-        }
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error(`Rate limited by Deribit API (429) on endpoint: /public/auth. Authentication endpoint is being rate limited. Please try again in a few seconds.`);
-      }
-      throw new Error(`Authentication failed on /public/auth: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(`Authentication error: ${data.error.message}`);
-    }
-
-    const result = data.result;
-    this.accessToken = result.access_token;
-    this.refreshToken = result.refresh_token;
-    this.tokenExpiry = Date.now() + (result.expires_in * 1000) - 60000; // Expire 1 minute early
-
-    return this.accessToken;
-  }
-
-  /**
-   * Refresh the access token using the refresh token
-   */
-  async refreshAccessToken() {
-    if (!this.refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
-    const response = await fetch(
-      `${this.baseUrl}/public/auth?` +
-      `grant_type=refresh_token&` +
-      `refresh_token=${encodeURIComponent(this.refreshToken)}`,
-      {
-        headers: {
-          'User-Agent': 'deribit-mcp/0.4.0'
-        }
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error(`Rate limited by Deribit API (429) on endpoint: /public/auth (refresh token). Token refresh endpoint is being rate limited. Please try again in a few seconds.`);
-      }
-      throw new Error(`Token refresh failed on /public/auth: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(`Token refresh error: ${data.error.message}`);
-    }
-
-    const result = data.result;
-    this.accessToken = result.access_token;
-    this.refreshToken = result.refresh_token;
-    this.tokenExpiry = Date.now() + (result.expires_in * 1000) - 60000; // Expire 1 minute early
-
-    return this.accessToken;
-  }
-
-  /**
-   * Set the authentication method
-   * @param {string} method - 'bearer', 'basic', or 'hmac'
-   */
-  setAuthMethod(method) {
-    const validMethods = ['bearer', 'basic', 'hmac'];
-    if (!validMethods.includes(method)) {
-      throw new Error(`Invalid auth method: ${method}. Must be one of: ${validMethods.join(', ')}`);
-    }
-    this.authMethod = method;
-    console.error(`Authentication method set to: ${method}`);
-  }
 
   /**
    * Close both HTTP and WebSocket clients.
@@ -254,20 +86,9 @@ export class DeribitClient {
       'User-Agent': 'deribit-mcp/0.4.0'
     };
 
-    // If we have credentials, add appropriate authentication header
+    // If we have credentials, use Basic Auth to avoid /public/auth endpoint rate limits
     if (this.clientId && this.clientSecret) {
-      if (this.authMethod === 'basic') {
-        // Basic Auth: avoids /public/auth endpoint
-        headers['Authorization'] = this._createBasicAuthHeader();
-      } else if (this.authMethod === 'hmac') {
-        // HMAC Auth: avoids /public/auth endpoint
-        const uri = new URL(urlString).pathname + new URL(urlString).search;
-        headers['Authorization'] = await this._createHmacAuthHeader('GET', uri, '');
-      } else {
-        // Bearer token: uses /public/auth endpoint (default fallback)
-        await this.authenticate();
-        headers['Authorization'] = `Bearer ${this.accessToken}`;
-      }
+      headers['Authorization'] = this._createBasicAuthHeader();
     }
 
     // Retry logic for network issues
@@ -336,48 +157,20 @@ export class DeribitClient {
 
     const urlString = url.toString();
 
-    // Prepare headers with appropriate authentication
+    // Prepare headers with Basic Auth
     const headers = {
       'User-Agent': 'deribit-mcp/0.4.0'
     };
 
-    if (this.authMethod === 'basic') {
+    // Use Basic Auth to avoid /public/auth endpoint rate limits
+    if (this.clientId && this.clientSecret) {
       headers['Authorization'] = this._createBasicAuthHeader();
-    } else if (this.authMethod === 'hmac') {
-      const uri = new URL(urlString).pathname + new URL(urlString).search;
-      headers['Authorization'] = await this._createHmacAuthHeader('GET', uri, '');
-    } else {
-      // Bearer token mode
-      await this.authenticate();
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
     try {
       const response = await fetch(urlString, { headers });
 
       if (!response.ok) {
-        // If we get 401 with Bearer token auth, try to refresh token and retry once
-        if (response.status === 401 && this.authMethod === 'bearer' && this.refreshToken) {
-          console.log('Access token expired, refreshing...');
-          await this.refreshAccessToken();
-
-          const retryHeaders = {
-            'User-Agent': 'deribit-mcp/0.4.0',
-            'Authorization': `Bearer ${this.accessToken}`
-          };
-
-          const retryResponse = await fetch(urlString, { headers: retryHeaders });
-          if (!retryResponse.ok) {
-            const retryText = await retryResponse.text();
-            console.error('Retry failed with response:', retryText);
-            throw new Error(`HTTP error! status: ${retryResponse.status}`);
-          }
-          const retryData = await retryResponse.json();
-          if (retryData.error) {
-            throw new Error(`API Error ${retryData.error.code}: ${retryData.error.message}`);
-          }
-          return retryData.result;
-        }
 
         if (response.status === 429) {
           throw new Error(`Rate limited by Deribit API (429) on endpoint: /private/${method}. Please try again in a few seconds.`);
@@ -535,7 +328,7 @@ export class DeribitClient {
         wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
       }
 
-      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret, this.authMethod);
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
       await this.wsClient.connect();
     }
 
@@ -628,7 +421,7 @@ export class DeribitClient {
         wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
       }
 
-      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret, this.authMethod);
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
       await this.wsClient.connect();
     }
 
@@ -734,7 +527,7 @@ export class DeribitClient {
         wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
       }
 
-      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret, this.authMethod);
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
       await this.wsClient.connect();
     }
 

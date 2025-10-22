@@ -39,23 +39,6 @@ Get free read-only API keys at: https://www.deribit.com/account/BTC/api`,
         this.#client = new DeribitClient(credentials.baseUrl);
         this.#client.clientId = credentials.clientId;
         this.#client.clientSecret = credentials.clientSecret;
-
-        // Restore auth method if saved, otherwise use default (basic)
-        if (credentials.authMethod) {
-          this.#client.authMethod = credentials.authMethod;
-        }
-
-        // Re-authenticate to get fresh access token (only if using bearer mode)
-        try {
-          if (this.#client.authMethod === 'bearer') {
-            await this.#client.authenticate();
-          }
-        } catch (error) {
-          console.error('Failed to restore authentication:', error);
-          // Clear invalid credentials
-          await ctx.storage.delete("deribit_credentials");
-          this.#client = null;
-        }
       }
     });
   }
@@ -106,11 +89,9 @@ Get free read-only API keys at: https://www.deribit.com/account/BTC/api`,
             type: 'text',
             text: JSON.stringify({
               authenticated: hasCredentials,
-              authMethod: client.authMethod,
               environment,
               hasCredentials,
-              tokenValid: client.tokenExpiry ? client.tokenExpiry > Date.now() : false,
-              note: hasCredentials ? "Ready for private API operations" : "Use 'set_deribit_credentials' tool to authenticate"
+              note: hasCredentials ? "Ready for private API operations using Basic Auth" : "Use 'set_deribit_credentials' tool to authenticate"
             }, null, 2)
           }],
         };
