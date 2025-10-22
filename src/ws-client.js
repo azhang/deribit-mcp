@@ -207,6 +207,24 @@ export class WebSocketClient {
   }
 
   /**
+   * Unsubscribe from ticker updates for multiple instruments.
+   *
+   * @param {Array<string>} instrumentNames - List of instrument names to unsubscribe from
+   */
+  async unsubscribeTickers(instrumentNames) {
+    const channels = instrumentNames.map(name => `incremental_ticker.${name}`);
+
+    console.error(`Unsubscribing from ${channels.length} ticker channels`);
+    const result = await this._call('public/unsubscribe', { channels });
+    console.error(`Unsubscribed from ${result.length} channels`);
+
+    // Clean up subscription data
+    for (const channel of channels) {
+      this._subscriptions.delete(channel);
+    }
+  }
+
+  /**
    * Wait for initial snapshot data for all instruments.
    *
    * @param {Array<string>} instrumentNames - List of instrument names
