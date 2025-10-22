@@ -79,8 +79,10 @@ export class DeribitClient {
       'User-Agent': 'deribit-mcp/0.4.0'
     };
 
-    // Public endpoints don't use authentication headers
-    // (Basic Auth is only for private endpoints)
+    // If we have credentials, use Basic Auth to avoid /public/auth endpoint rate limits
+    if (this.clientId && this.clientSecret) {
+      headers['Authorization'] = this._createBasicAuthHeader();
+    }
 
     // Retry logic for network issues
     let lastError;
