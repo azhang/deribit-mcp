@@ -59,13 +59,6 @@ export class DeribitClient {
   async _call(method, params = {}) {
     const url = new URL(`${this.baseUrl}/public/${method}`);
 
-    // If we have credentials, authenticate to get higher rate limits
-    if (this.clientId && this.clientSecret) {
-      await this.authenticate();
-      // Add access token to params for authenticated requests
-      params = { ...params, access_token: this.accessToken };
-    }
-
     // Add query parameters
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
