@@ -7,6 +7,7 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DeribitClient } from './deribit.js';
 import { registerDeribitTools, registerPrivateTools } from './server.js';
+import { encode } from '@toon-format/toon';
 
 /**
  * Deribit MCP Agent for Cloudflare Workers
@@ -87,12 +88,12 @@ Get free read-only API keys at: https://www.deribit.com/account/BTC/api`,
         return {
           content: [{
             type: 'text',
-            text: JSON.stringify({
+            text: encode({
               authenticated: hasCredentials,
               environment,
               hasCredentials,
               note: hasCredentials ? "Ready for private API operations using Basic Auth" : "Use 'set_deribit_credentials' tool to authenticate"
-            }, null, 2)
+            })
           }],
         };
       }

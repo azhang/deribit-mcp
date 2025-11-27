@@ -6,6 +6,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { DeribitClient } from './deribit.js';
+import { encode } from '@toon-format/toon';
 
 /**
  * Register all Deribit tools on a given MCP server instance
@@ -26,7 +27,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getTicker(instrument_name);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -51,7 +52,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getOrderBook(instrument_name, depth || null);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -66,7 +67,7 @@ export function registerDeribitTools(server, getClient) {
   server.registerTool(
     'get_instruments',
     {
-      description: 'Get a list of available trading instruments for a specific currency. Can filter by instrument kind (future, option, spot, etc.). Returns CSV format.',
+      description: 'Get a list of available trading instruments for a specific currency. Can filter by instrument kind (future, option, spot, etc.). Returns TOON format for optimal LLM comprehension.',
       inputSchema: {
         currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH', 'USDC')"),
         kind: z.enum(['future', 'option', 'spot', 'future_combo', 'option_combo']).optional()
@@ -112,7 +113,7 @@ export function registerDeribitTools(server, getClient) {
           include_old || false
         );
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -134,7 +135,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getCurrencies();
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -158,7 +159,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getIndexPrice(index_name);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -173,7 +174,7 @@ export function registerDeribitTools(server, getClient) {
   server.registerTool(
     'get_expirations',
     {
-      description: 'Get available expiration dates for instruments. Much more efficient than calling getInstruments to find expirations. Returns CSV format.',
+      description: 'Get available expiration dates for instruments. Much more efficient than calling getInstruments to find expirations. Returns TOON format for optimal LLM comprehension.',
       inputSchema: {
         currency: z.string().describe("Currency symbol: BTC, ETH, USDC, USDT, 'any' for all, or 'grouped' for all grouped by currency"),
         kind: z.enum(['future', 'option', 'any']).describe('Instrument kind'),
@@ -203,7 +204,7 @@ export function registerDeribitTools(server, getClient) {
   server.registerTool(
     'get_options_chain',
     {
-      description: 'Get complete options chain for a specific expiry with real-time greeks. Returns data in CSV format for easy table viewing. Uses WebSocket for efficient real-time data. Includes prices, volumes, open interest, delta, gamma, vega, theta, rho, and IV.',
+      description: 'Get complete options chain for a specific expiry with real-time greeks. Returns data in TOON format for optimal LLM comprehension. Uses WebSocket for efficient real-time data. Includes prices, volumes, open interest, delta, gamma, vega, theta, rho, and IV.',
       inputSchema: {
         currency: z.string().describe("Settlement currency: 'BTC' for BTC-settled options (e.g., ETH-9OCT25-4000-C), 'USDC' for USDC-settled options (e.g., ETH_USDC-9OCT25-4000-C, SOL_USDC-...). Valid values: BTC, ETH, USDC, USDT, EURR"),
         expiry: z.string().describe("Expiry date in format like '9OCT25', '27MAR25', or 'DDMMMYY'"),
@@ -244,7 +245,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getTickers(instrument_names);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -268,7 +269,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getIndexPrices(index_names);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -293,7 +294,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getOrderBooks(instrument_names, depth || null);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -357,7 +358,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getVolatilityIndexData(currency, start_timestamp, end_timestamp, resolution);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -381,7 +382,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getHistoricalVolatility(currency);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -405,7 +406,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getCombos(currency);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -431,7 +432,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getFundingRate(instrument_name, start_timestamp, end_timestamp);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -461,7 +462,7 @@ export function registerDeribitTools(server, getClient) {
           end_timestamp || null
         );
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -491,7 +492,7 @@ export function registerDeribitTools(server, getClient) {
           count || null
         );
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -519,7 +520,7 @@ export function registerDeribitTools(server, getClient) {
           kind || null
         );
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -543,7 +544,7 @@ export function registerDeribitTools(server, getClient) {
       try {
         const result = await getClient().getBookSummaryByInstrument(instrument_name);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -575,7 +576,7 @@ export function registerDeribitTools(server, getClient) {
           end_timestamp
         );
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -690,7 +691,7 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
       try {
         const result = await getClient().getAccountSummary(currency, extended !== false);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -716,7 +717,7 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
       try {
         const result = await getClient().getPositions(currency, kind || null);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -748,7 +749,7 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
           type || null
         );
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -810,7 +811,7 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
           offset || 0
         );
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -842,7 +843,7 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
           include_old || false
         );
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {
@@ -866,7 +867,7 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
       try {
         const result = await getClient().getSubaccounts(with_portfolio || false);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{ type: 'text', text: encode(result) }],
         };
       } catch (error) {
         return {

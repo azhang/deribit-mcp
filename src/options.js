@@ -1,6 +1,7 @@
 /**
  * Options chain building and formatting utilities.
  */
+import { encode } from '@toon-format/toon';
 
 /**
  * Parse an options instrument name into components.
@@ -52,14 +53,14 @@ export function filterInstrumentsByExpiry(instruments, expiry) {
 }
 
 /**
- * Build CSV representation of options chain from ticker data.
+ * Build TOON representation of options chain from ticker data.
  *
  * @param {Object} tickerData - Dictionary mapping instrument_name to ticker data
  * @param {string} currency - Currency symbol
  * @param {string} expiry - Expiry date
  * @param {number} [minStrike] - Optional minimum strike filter
  * @param {number} [maxStrike] - Optional maximum strike filter
- * @returns {string} CSV formatted string with header comments
+ * @returns {string} TOON formatted string with metadata and options array
  */
 export function buildOptionsChainCSV(tickerData, currency, expiry, minStrike = null, maxStrike = null) {
   // Group by strike
@@ -124,69 +125,82 @@ export function buildOptionsChainCSV(tickerData, currency, expiry, minStrike = n
     };
   }
 
-  // Build CSV
-  const lines = [];
-
-  // Header comments
-  lines.push(`# Currency: ${currency}`);
-  lines.push(`# Expiry: ${expiry}`);
-  if (timestamp !== null) {
-    lines.push(`# Timestamp: ${timestamp}`);
-  }
-  if (underlyingPrice !== null) {
-    lines.push(`# Underlying: ${underlyingPrice}`);
-  }
-  if (indexPrice !== null) {
-    lines.push(`# Index: ${indexPrice}`);
-  }
-
-  // CSV header
-  const headerFields = [
-    'strike',
-    'type',
-    'instrument_name',
-    'mark_price',
-    'bid_price',
-    'ask_price',
-    'bid_amount',
-    'ask_amount',
-    'last_price',
-    'volume_24h',
-    'open_interest',
-    'delta',
-    'gamma',
-    'vega',
-    'theta',
-    'rho',
-    'mark_iv',
-    'bid_iv',
-    'ask_iv'
-  ];
-  lines.push(headerFields.join(','));
+  // Build TOON-formatted options array
+  const optionsList = [];
 
   // Sort strikes
   const sortedStrikes = Object.keys(strikesData)
     .map(parseFloat)
     .sort((a, b) => a - b);
 
-  // Build rows
+  // Build options array
   for (const strike of sortedStrikes) {
     const strikeData = strikesData[strike];
 
-    // Add call row
+    // Add call option
     const callData = strikeData.call;
     if (callData) {
-      lines.push(formatCSVRow(strike, 'call', callData));
+      optionsList.push({
+        strike,
+        type: 'call',
+        instrument_name: callData.instrumentName,
+        mark_price: callData.markPrice,
+        bid_price: callData.bidPrice,
+        ask_price: callData.askPrice,
+        bid_amount: callData.bidAmount,
+        ask_amount: callData.askAmount,
+        last_price: callData.lastPrice,
+        volume_24h: callData.volume24h,
+        open_interest: callData.openInterest,
+        delta: callData.delta,
+        gamma: callData.gamma,
+        vega: callData.vega,
+        theta: callData.theta,
+        rho: callData.rho,
+        mark_iv: callData.markIv,
+        bid_iv: callData.bidIv,
+        ask_iv: callData.askIv
+      });
     }
 
-    // Add put row
+    // Add put option
     const putData = strikeData.put;
     if (putData) {
-      lines.push(formatCSVRow(strike, 'put', putData));
+      optionsList.push({
+        strike,
+        type: 'put',
+        instrument_name: putData.instrumentName,
+        mark_price: putData.markPrice,
+        bid_price: putData.bidPrice,
+        ask_price: putData.askPrice,
+        bid_amount: putData.bidAmount,
+        ask_amount: putData.askAmount,
+        last_price: putData.lastPrice,
+        volume_24h: putData.volume24h,
+        open_interest: putData.openInterest,
+        delta: putData.delta,
+        gamma: putData.gamma,
+        vega: putData.vega,
+        theta: putData.theta,
+        rho: putData.rho,
+        mark_iv: putData.markIv,
+        bid_iv: putData.bidIv,
+        ask_iv: putData.askIv
+      });
     }
   }
 
-  return lines.join('\n');
+  // Return TOON format with metadata
+  return encode({
+    metadata: {
+      currency,
+      expiry,
+      timestamp: timestamp || '',
+      underlying_price: underlyingPrice || '',
+      index_price: indexPrice || ''
+    },
+    options: optionsList
+  });
 }
 
 /**
