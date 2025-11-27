@@ -8,6 +8,7 @@
 
 import { WebSocketClient } from './ws-client.js';
 import { filterInstrumentsByExpiry, buildOptionsChainCSV } from './options.js';
+import { encode } from '@toon-format/toon';
 
 export class DeribitClient {
   constructor(baseUrl = 'https://www.deribit.com/api/v2', clientId = null, clientSecret = null) {
@@ -232,40 +233,45 @@ export class DeribitClient {
    * @param {string} currency - Currency symbol (e.g., "BTC", "ETH")
    * @param {string} [kind] - Optional instrument kind
    * @param {boolean} [expired=false] - Whether to include expired instruments
-   * @returns {Promise<string>} CSV string with essential instrument fields
+   * @returns {Promise<string>} TOON formatted string with instrument data
    */
   async getInstruments(currency, kind = null, expired = false) {
     const instruments = await this._getInstrumentsRaw(currency, kind, expired);
 
     if (!instruments || instruments.length === 0) {
-      return 'instrument_name\n';
+      return encode({ instruments: [] });
     }
 
-    let header, rows;
+    // Build array of instrument objects with relevant fields
+    const instrumentList = [];
 
     // For options, include option-specific fields
     if (kind === 'option') {
-      header = 'instrument_name,kind,strike,option_type,expiration_timestamp,is_active,settlement_currency';
-      rows = [header];
       for (const inst of instruments) {
-        rows.push(
-          `${inst.instrument_name},${inst.kind},${inst.strike || ''},${inst.option_type || ''},` +
-          `${inst.expiration_timestamp},${inst.is_active},${inst.settlement_currency}`
-        );
+        instrumentList.push({
+          instrument_name: inst.instrument_name,
+          kind: inst.kind,
+          strike: inst.strike || '',
+          option_type: inst.option_type || '',
+          expiration_timestamp: inst.expiration_timestamp,
+          is_active: inst.is_active,
+          settlement_currency: inst.settlement_currency
+        });
       }
     } else {
       // For futures/spots, simpler format
-      header = 'instrument_name,kind,expiration_timestamp,is_active,settlement_currency';
-      rows = [header];
       for (const inst of instruments) {
-        rows.push(
-          `${inst.instrument_name},${inst.kind},${inst.expiration_timestamp || ''},` +
-          `${inst.is_active},${inst.settlement_currency}`
-        );
+        instrumentList.push({
+          instrument_name: inst.instrument_name,
+          kind: inst.kind,
+          expiration_timestamp: inst.expiration_timestamp || '',
+          is_active: inst.is_active,
+          settlement_currency: inst.settlement_currency
+        });
       }
     }
 
-    return rows.join('\n');
+    return encode({ instruments: instrumentList });
   }
 
   /**
@@ -458,7 +464,7 @@ export class DeribitClient {
    * @param {string} currency - Currency symbol
    * @param {string} kind - Instrument kind
    * @param {string} [currencyPair] - Optional currency pair filter
-   * @returns {Promise<string>} CSV string with expirations
+   * @returns {Promise<string>} TOON formatted string with expiration data
    */
   async getExpirations(currency, kind, currencyPair = null) {
     const params = { currency, kind };
@@ -468,10 +474,10 @@ export class DeribitClient {
 
     const result = await this._call('get_expirations', params);
 
-    const rows = ['currency,kind,expiration'];
+    const expirationsList = [];
 
     if (!result) {
-      return rows.join('\n');
+      return encode({ expirations: expirationsList });
     }
 
     // Check if first value is a dict (grouped format) or list (any format)
@@ -482,7 +488,11 @@ export class DeribitClient {
       for (const [curr, kinds] of Object.entries(result)) {
         for (const [k, expirations] of Object.entries(kinds)) {
           for (const expiry of expirations) {
-            rows.push(`${curr},${k},${expiry}`);
+            expirationsList.push({
+              currency: curr,
+              kind: k,
+              expiration: expiry
+            });
           }
         }
       }
@@ -490,12 +500,16 @@ export class DeribitClient {
       // "any" format: {kind: [expirations]}
       for (const [k, expirations] of Object.entries(result)) {
         for (const expiry of expirations) {
-          rows.push(`any,${k},${expiry}`);
+          expirationsList.push({
+            currency: 'any',
+            kind: k,
+            expiration: expiry
+          });
         }
       }
     }
 
-    return rows.join('\n');
+    return encode({ expirations: expirationsList });
   }
 
   /**
