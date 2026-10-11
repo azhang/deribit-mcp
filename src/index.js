@@ -8,7 +8,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DeribitClient } from './deribit.js';
 import { registerDeribitTools, registerPrivateTools } from './server.js';
 import { encode } from '@toon-format/toon';
-import { isAuthorized } from './auth.js';
 
 /**
  * Deribit MCP Agent for Cloudflare Workers
@@ -106,7 +105,7 @@ Get free read-only API keys at: https://www.deribit.com/account/BTC/api`,
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, mcp-session-id, x-api-key",
+  "Access-Control-Allow-Headers": "Content-Type, mcp-session-id",
   "Access-Control-Expose-Headers": "Mcp-Session-Id",
 };
 
@@ -125,13 +124,6 @@ export default {
 
     // HTTP endpoint for MCP protocol (streamable HTTP transport)
     if (url.pathname === "/deribit/mcp") {
-      if (!(await isAuthorized(request, env))) {
-        return new Response("Unauthorized", {
-          status: 401,
-          headers: { "Content-Type": "text/plain", ...CORS_HEADERS },
-        });
-      }
-
       const response = await DeribitMCP.serve("/deribit/mcp").fetch(request, env, ctx);
 
       // Add CORS headers to the response
