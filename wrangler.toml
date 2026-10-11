@@ -3,6 +3,10 @@ main = "src/index.js"
 compatibility_date = "2025-10-08"
 compatibility_flags = ["nodejs_compat"]
 
+# Optional peer of agents/mcp that we never call; see src/ai-stub.js
+[alias]
+"ai" = "./src/ai-stub.js"
+
 # Durable Objects configuration for MCP Agent
 [durable_objects]
 bindings = [
