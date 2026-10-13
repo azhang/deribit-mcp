@@ -1,0 +1,6 @@
+{
+  "extraKnownMarketplaces": {
+    "deribit-mcp": { "source": { "source": "github", "repo": "azhang/deribit-mcp" } }
+  },
+  "enabledPlugins": { "deribit@deribit-mcp": true }
+}

@@ -1,5 +1,17 @@
 # Deribit MCP Server
 
+## Claude Code plugin (v2)
+
+Install the v2 skill and the hosted MCP server (`https://mcp.x.zip/deribit/v2/mcp`, public data) in one step:
+
+```
+/plugin install deribit --marketplace azhang/deribit-mcp
+```
+
+Or in a shell: `claude plugin marketplace add azhang/deribit-mcp && claude plugin install deribit@deribit-mcp`. Claude Code sessions opened in this repo install it automatically (`.claude/settings.json`). For other hosts and the local server, see [`skills/README.md`](skills/README.md) and [`packages/mcp`](packages/mcp).
+
+The rest of this README describes v1.
+
 An MCP (Model Context Protocol) server that provides access to Deribit's cryptocurrency exchange API for market data and account management.
 
 ## Features
