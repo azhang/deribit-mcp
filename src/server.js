@@ -207,19 +207,21 @@ export function registerDeribitTools(server, getClient) {
     {
       description: 'Get complete options chain for a specific expiry with real-time greeks. Returns data in TOON format for optimal LLM comprehension. Uses WebSocket for efficient real-time data. Includes prices, volumes, open interest, delta, gamma, vega, theta, rho, and IV.',
       inputSchema: {
-        currency: z.string().describe("Settlement currency: 'BTC' for BTC-settled options (e.g., ETH-9OCT25-4000-C), 'USDC' for USDC-settled options (e.g., ETH_USDC-9OCT25-4000-C, SOL_USDC-...). Valid values: BTC, ETH, USDC, USDT, EURR"),
+        currency: z.string().describe("Settlement currency: 'BTC' or 'ETH' for the coin-settled books (e.g. BTC-9OCT25-100000-C, ETH-9OCT25-4000-C), 'USDC' for linear USDC-settled options (e.g. SOL_USDC-9OCT25-150-C, ETH_USDC-...)"),
         expiry: z.string().describe("Expiry date in format like '9OCT25', '27MAR25', or 'DDMMMYY'"),
+        underlying: z.string().optional().describe("Underlying coin (e.g. 'SOL', 'XRP', 'BTC'). Required for USDC-settled options, where one expiry lists several underlyings."),
         min_strike: z.number().optional().describe('Optional minimum strike price to filter results'),
         max_strike: z.number().optional().describe('Optional maximum strike price to filter results'),
       }
     },
-    async ({ currency, expiry, min_strike, max_strike }) => {
+    async ({ currency, expiry, underlying, min_strike, max_strike }) => {
       try {
         const result = await getClient().getOptionsChain(
           currency,
           expiry,
           min_strike || null,
-          max_strike || null
+          max_strike || null,
+          underlying || null
         );
         return {
           content: [{ type: 'text', text: result }],
@@ -312,19 +314,21 @@ export function registerDeribitTools(server, getClient) {
     {
       description: 'Get options chains for multiple expiries using a single WebSocket connection. Extremely efficient for getting data across multiple expiry dates.',
       inputSchema: {
-        currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH', 'USDC')"),
+        currency: z.string().describe("Settlement currency: 'BTC', 'ETH', or 'USDC' for linear options (see get_options_chain)"),
         expiries: z.array(z.string()).describe("Array of expiry dates in format like '9OCT25' or '29MAR24'"),
+        underlying: z.string().optional().describe("Underlying coin (e.g. 'SOL', 'XRP', 'BTC'). Required for USDC-settled options, where one expiry lists several underlyings."),
         min_strike: z.number().optional().describe("Minimum strike price filter (optional)"),
         max_strike: z.number().optional().describe("Maximum strike price filter (optional)"),
       }
     },
-    async ({ currency, expiries, min_strike, max_strike }) => {
+    async ({ currency, expiries, underlying, min_strike, max_strike }) => {
       try {
         const result = await getClient().getOptionsChains(
           currency,
           expiries,
           min_strike || null,
-          max_strike || null
+          max_strike || null,
+          underlying || null
         );
         // Format result with clear separators between expiries
         let output = '';
