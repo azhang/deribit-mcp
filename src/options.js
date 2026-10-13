@@ -11,8 +11,9 @@ import { encode } from '@toon-format/toon';
  */
 export function parseInstrumentName(instrumentName) {
   // Pattern: CURRENCY[-EXPIRY-STRIKE-TYPE]
-  // Examples: BTC-27MAR20-8000-C, ETH_USDC-9OCT25-4000-P
-  const pattern = /^([A-Z_]+)-(\d{1,2}[A-Z]{3}\d{2})-(\d+(?:\.\d+)?)-([CP])$/;
+  // Examples: BTC-27MAR20-8000-C, ETH_USDC-9OCT25-4000-P, AVAX_USDC-14OCT26-9d6-C
+  // Fractional strikes use 'd' as the decimal separator (9d6 = 9.6)
+  const pattern = /^([A-Z_]+)-(\d{1,2}[A-Z]{3}\d{2})-(\d+(?:[.d]\d+)?)-([CP])$/;
   const match = instrumentName.match(pattern);
 
   if (!match) {
@@ -24,7 +25,7 @@ export function parseInstrumentName(instrumentName) {
   return {
     currency,
     expiry,
-    strike: parseFloat(strike),
+    strike: parseFloat(strike.replace('d', '.')),
     type: optionType === 'C' ? 'call' : 'put',
     instrumentName
   };

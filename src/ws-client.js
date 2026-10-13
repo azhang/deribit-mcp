@@ -167,8 +167,27 @@ export class WebSocketClient {
       const channel = data.params.channel;
       const subscriptionData = data.params.data;
 
-      // Store subscription data
-      this._subscriptions.set(channel, subscriptionData);
+      // incremental_ticker sends a full 'snapshot' followed by 'change' messages
+      // containing only the changed fields; merge changes into the snapshot.
+      if (subscriptionData && subscriptionData.type === 'change') {
+        const existing = this._subscriptions.get(channel);
+        if (!existing) {
+          return; // Ignore changes received before the snapshot
+        }
+        const merged = { ...existing };
+        for (const [key, value] of Object.entries(subscriptionData)) {
+          const prev = existing[key];
+          if (value && typeof value === 'object' && !Array.isArray(value) &&
+              prev && typeof prev === 'object' && !Array.isArray(prev)) {
+            merged[key] = { ...prev, ...value };
+          } else {
+            merged[key] = value;
+          }
+        }
+        this._subscriptions.set(channel, merged);
+      } else {
+        this._subscriptions.set(channel, subscriptionData);
+      }
       console.log(`Received subscription update for ${channel}`);
       return;
     }
