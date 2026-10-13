@@ -11,8 +11,9 @@ import { encode } from '@toon-format/toon';
  */
 export function parseInstrumentName(instrumentName) {
   // Pattern: CURRENCY[-EXPIRY-STRIKE-TYPE]
-  // Examples: BTC-27MAR20-8000-C, ETH_USDC-9OCT25-4000-P
-  const pattern = /^([A-Z_]+)-(\d{1,2}[A-Z]{3}\d{2})-(\d+(?:\.\d+)?)-([CP])$/;
+  // Examples: BTC-27MAR20-8000-C, ETH_USDC-9OCT25-4000-P, AVAX_USDC-14OCT26-9d6-C
+  // Fractional strikes use 'd' as the decimal separator (9d6 = 9.6)
+  const pattern = /^([A-Z_]+)-(\d{1,2}[A-Z]{3}\d{2})-(\d+(?:[.d]\d+)?)-([CP])$/;
   const match = instrumentName.match(pattern);
 
   if (!match) {
@@ -24,32 +25,68 @@ export function parseInstrumentName(instrumentName) {
   return {
     currency,
     expiry,
-    strike: parseFloat(strike),
+    strike: parseFloat(strike.replace('d', '.')),
     type: optionType === 'C' ? 'call' : 'put',
     instrumentName
   };
 }
 
 /**
- * Filter instruments list to only options matching the expiry.
+ * Underlying coin of a parsed option, e.g. "SOL" for SOL_USDC-... and "BTC" for BTC-...
+ *
+ * @param {Object} parsed - Result of parseInstrumentName
+ * @returns {string} Underlying coin symbol
+ */
+export function underlyingOf(parsed) {
+  return parsed.currency.split('_')[0];
+}
+
+/**
+ * Filter instruments list to only options matching the expiry (and underlying, if given).
  *
  * @param {Array<Object>} instruments - List of instrument dictionaries from get_instruments
  * @param {string} expiry - Expiry date string like "9OCT25"
+ * @param {string} [underlying] - Optional underlying coin like "SOL"
  * @returns {Array<string>} List of instrument names matching the expiry
  */
-export function filterInstrumentsByExpiry(instruments, expiry) {
+export function filterInstrumentsByExpiry(instruments, expiry, underlying = null) {
   const matching = [];
 
   for (const instrument of instruments) {
     const name = instrument.instrument_name || '';
     const parsed = parseInstrumentName(name);
 
-    if (parsed && parsed.expiry.toUpperCase() === expiry.toUpperCase()) {
-      matching.push(name);
+    if (!parsed || parsed.expiry.toUpperCase() !== expiry.toUpperCase()) {
+      continue;
     }
+    if (underlying && underlyingOf(parsed) !== underlying.toUpperCase()) {
+      continue;
+    }
+    matching.push(name);
   }
 
   return matching;
+}
+
+/**
+ * Throw if instrument names span more than one underlying. A chain is grouped
+ * by strike and takes its underlying price from one ticker, so mixing e.g. SOL
+ * and XRP options would overwrite rows and report the wrong forward.
+ *
+ * @param {Array<string>} instrumentNames - Option instrument names
+ * @param {string} currency - Settlement currency that was requested
+ */
+export function assertSingleUnderlying(instrumentNames, currency) {
+  const underlyings = new Set(
+    instrumentNames.map(name => underlyingOf(parseInstrumentName(name)))
+  );
+  if (underlyings.size > 1) {
+    const list = [...underlyings].sort().join(', ');
+    throw new Error(
+      `${currency} options for this expiry cover several underlyings (${list}). ` +
+      `Pass underlying (e.g. '${[...underlyings].sort()[0]}') to choose one.`
+    );
+  }
 }
 
 /**

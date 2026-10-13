@@ -7,7 +7,7 @@
  */
 
 import { WebSocketClient } from './ws-client.js';
-import { filterInstrumentsByExpiry, buildOptionsChainCSV } from './options.js';
+import { filterInstrumentsByExpiry, assertSingleUnderlying, buildOptionsChainCSV } from './options.js';
 import { encode } from '@toon-format/toon';
 
 export class DeribitClient {
@@ -279,13 +279,16 @@ export class DeribitClient {
    *
    * @param {string} instrumentName - The instrument name
    * @param {number} [count] - Number of trades to retrieve
-   * @param {boolean} [includeOld=false] - Whether to include old trades
+   * @param {string} [sorting] - Sorting direction: "asc", "desc" or "default"
    * @returns {Promise<Object>} Trade data
    */
-  async getLastTradesByInstrument(instrumentName, count = null, includeOld = false) {
-    const params = { instrument_name: instrumentName, include_old: includeOld };
+  async getLastTradesByInstrument(instrumentName, count = null, sorting = null) {
+    const params = { instrument_name: instrumentName };
     if (count !== null) {
       params.count = count;
+    }
+    if (sorting !== null) {
+      params.sorting = sorting;
     }
     return await this._call('get_last_trades_by_instrument', params);
   }
@@ -390,9 +393,10 @@ export class DeribitClient {
    * @param {Array<string>} expiries - Array of expiry dates (e.g., ["9OCT25", "16OCT25"])
    * @param {number} [minStrike] - Optional minimum strike filter
    * @param {number} [maxStrike] - Optional maximum strike filter
+   * @param {string} [underlying] - Underlying coin; required when the settlement currency covers several (e.g. USDC)
    * @returns {Promise<Object>} Dictionary mapping expiry to CSV string
    */
-  async getOptionsChains(currency, expiries, minStrike = null, maxStrike = null) {
+  async getOptionsChains(currency, expiries, minStrike = null, maxStrike = null, underlying = null) {
     // Step 1: Get all option instruments for this currency (HTTP)
     const instruments = await this._getInstrumentsRaw(currency, 'option', false);
 
@@ -401,15 +405,16 @@ export class DeribitClient {
     const expiryToInstruments = {};
 
     for (const expiry of expiries) {
-      const instrumentNames = filterInstrumentsByExpiry(instruments, expiry);
+      const instrumentNames = filterInstrumentsByExpiry(instruments, expiry, underlying);
       expiryToInstruments[expiry] = instrumentNames;
       allInstrumentNames.push(...instrumentNames);
     }
+    assertSingleUnderlying(allInstrumentNames, currency);
 
     if (allInstrumentNames.length === 0) {
       const results = {};
       for (const expiry of expiries) {
-        results[expiry] = `# No instruments found for ${currency} expiry ${expiry}\n`;
+        results[expiry] = `# No instruments found for ${currency}${underlying ? ` ${underlying}` : ''} expiry ${expiry}\n`;
       }
       return results;
     }
@@ -519,18 +524,20 @@ export class DeribitClient {
    * @param {string} expiry - Expiry date in format "9OCT25"
    * @param {number} [minStrike] - Optional minimum strike filter
    * @param {number} [maxStrike] - Optional maximum strike filter
+   * @param {string} [underlying] - Underlying coin; required when the settlement currency covers several (e.g. USDC)
    * @returns {Promise<string>} CSV formatted string
    */
-  async getOptionsChain(currency, expiry, minStrike = null, maxStrike = null) {
+  async getOptionsChain(currency, expiry, minStrike = null, maxStrike = null, underlying = null) {
     // Step 1: Get all option instruments for this currency (HTTP)
     const instruments = await this._getInstrumentsRaw(currency, 'option', false);
 
     // Step 2: Filter instruments by expiry date
-    const instrumentNames = filterInstrumentsByExpiry(instruments, expiry);
+    const instrumentNames = filterInstrumentsByExpiry(instruments, expiry, underlying);
 
     if (instrumentNames.length === 0) {
-      return `# No instruments found for ${currency} expiry ${expiry}\n`;
+      return `# No instruments found for ${currency}${underlying ? ` ${underlying}` : ''} expiry ${expiry}\n`;
     }
+    assertSingleUnderlying(instrumentNames, currency);
 
     // Step 3: Connect WebSocket if not already connected
     if (this.wsClient === null) {
@@ -570,7 +577,7 @@ export class DeribitClient {
    * @param {string} currency - Currency symbol (e.g., "BTC", "ETH")
    * @param {number} startTimestamp - Start timestamp in milliseconds
    * @param {number} endTimestamp - End timestamp in milliseconds
-   * @param {string} resolution - Resolution in minutes (e.g., "60")
+   * @param {string} resolution - Resolution in seconds: "1", "60", "3600", "43200" or "1D" (e.g., "3600" for hourly)
    * @returns {Promise<Object>} Volatility index data including current level and changes
    */
   async getVolatilityIndexData(currency, startTimestamp, endTimestamp, resolution) {
@@ -622,19 +629,16 @@ export class DeribitClient {
    * Get historical funding rate data for perpetual contracts.
    *
    * @param {string} instrumentName - The instrument name (e.g., "BTC-PERPETUAL")
-   * @param {number} [startTimestamp] - Start timestamp in milliseconds
-   * @param {number} [endTimestamp] - End timestamp in milliseconds
+   * @param {number} startTimestamp - Start timestamp in milliseconds
+   * @param {number} endTimestamp - End timestamp in milliseconds
    * @returns {Promise<Array>} Array of historical funding rate data points
    */
-  async getFundingRateHistory(instrumentName, startTimestamp = null, endTimestamp = null) {
-    const params = { instrument_name: instrumentName };
-    if (startTimestamp !== null) {
-      params.start_timestamp = startTimestamp;
-    }
-    if (endTimestamp !== null) {
-      params.end_timestamp = endTimestamp;
-    }
-    return await this._call('get_funding_rate_history', params);
+  async getFundingRateHistory(instrumentName, startTimestamp, endTimestamp) {
+    return await this._call('get_funding_rate_history', {
+      instrument_name: instrumentName,
+      start_timestamp: startTimestamp,
+      end_timestamp: endTimestamp
+    });
   }
 
   /**
@@ -714,7 +718,7 @@ export class DeribitClient {
   /**
    * Get current positions (requires authentication)
    * @param {string} currency - Currency (BTC, ETH, USDC, etc.)
-   * @param {string} kind - Instrument kind (future, option, spot, or omit for all)
+   * @param {string} kind - Instrument kind (future, option, future_combo, option_combo, or omit for all)
    * @returns {Promise<Array>} Array of position data
    */
   async getPositions(currency, kind = null) {
@@ -728,8 +732,8 @@ export class DeribitClient {
   /**
    * Get open orders (requires authentication)
    * @param {string} currency - Currency (BTC, ETH, USDC, etc.)
-   * @param {string} kind - Instrument kind (future, option, spot, or omit for all)
-   * @param {string} type - Order type (limit, market, stop_limit, stop_market, or omit for all)
+   * @param {string} kind - Instrument kind (future, option, spot, future_combo, option_combo, or omit for all)
+   * @param {string} type - Order type (all, limit, trigger_all, stop_all, stop_limit, stop_market, take_all, take_limit, take_market, trailing_all, trailing_stop, or omit for all)
    * @returns {Promise<Array>} Array of open orders
    */
   async getOpenOrders(currency = null, kind = null, type = null) {
@@ -812,19 +816,24 @@ export class DeribitClient {
 
   /**
    * Cancel all orders (requires authentication)
-   * @param {string} currency - Optional currency filter
-   * @param {string} kind - Optional instrument kind filter
-   * @param {string} type - Optional order type filter
+   * @param {string} currency - Optional currency filter (required to filter by kind or type)
+   * @param {string} kind - Optional instrument kind filter (requires currency)
+   * @param {string} type - Optional order type filter (requires currency)
    * @returns {Promise<number>} Number of cancelled orders
    */
   async cancelAllOrders(currency = null, kind = null, type = null) {
-    const params = {};
-    if (currency) params.currency = currency;
+    if (!currency) {
+      // private/cancel_all accepts no kind/type filter; refuse rather than cancel everything
+      if (kind || type) {
+        throw new Error('currency is required to filter by kind or type');
+      }
+      return await this._callPrivate('cancel_all', {});
+    }
+
+    const params = { currency };
     if (kind) params.kind = kind;
     if (type) params.type = type;
-
-    const endpoint = currency ? 'cancel_all_by_currency' : 'cancel_all';
-    return await this._callPrivate(endpoint, params);
+    return await this._callPrivate('cancel_all_by_currency', params);
   }
 
   /**
@@ -846,11 +855,11 @@ export class DeribitClient {
    * @param {string} currency - Currency
    * @param {string} kind - Instrument kind (optional)
    * @param {number} count - Number of trades to retrieve
-   * @param {boolean} includeOld - Include old trades
+   * @param {boolean} historical - false: recent trades (last 24h); true: historical records
    * @returns {Promise<Object>} Trade history
    */
-  async getUserTrades(currency, kind = null, count = 100, includeOld = false) {
-    const params = { currency, count, include_old: includeOld };
+  async getUserTrades(currency, kind = null, count = 100, historical = false) {
+    const params = { currency, count, historical };
     if (kind) params.kind = kind;
     return await this._callPrivate('get_user_trades_by_currency', params);
   }

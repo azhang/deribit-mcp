@@ -338,7 +338,7 @@ Get current open positions across all instruments. Requires authentication.
 
 **Parameters:**
 - `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
-- `kind` (optional): Instrument kind ("future", "option", "spot")
+- `kind` (optional): Instrument kind ("future", "option", "future_combo", "option_combo")
 
 **Example:**
 ```json
@@ -353,8 +353,8 @@ Get all active orders. Requires authentication.
 
 **Parameters:**
 - `currency` (optional): Filter by currency (e.g., "BTC", "ETH")
-- `kind` (optional): Filter by instrument kind ("future", "option", "spot")
-- `type` (optional): Filter by order type ("limit", "market", "stop_limit", "stop_market")
+- `kind` (optional): Filter by instrument kind ("future", "option", "spot", "future_combo", "option_combo")
+- `type` (optional): Filter by order type ("all", "limit", "trigger_all", "stop_all", "stop_limit", "stop_market", "take_all", "take_limit", "take_market", "trailing_all", "trailing_stop")
 
 **Example:**
 ```json
@@ -389,7 +389,7 @@ Get your trade history. Requires authentication.
 - `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
 - `kind` (optional): Instrument kind ("future", "option", "spot")
 - `count` (optional): Number of results (default: 10)
-- `includeOld` (optional): Include old trades (default: false)
+- `historical` (optional): false (default) returns recent trades from the last 24h; true returns historical trade records
 
 **Example:**
 ```json
@@ -417,7 +417,12 @@ List all subaccounts. Requires authentication.
 
 Use this tool to quickly exit all positions in emergency situations.
 
-**Parameters:** None (cancels ALL orders)
+**Parameters:**
+- `currency` (optional): Currency filter. Without it, ALL orders are cancelled.
+- `kind` (optional, requires `currency`): Instrument kind ("future", "option", "spot", "future_combo", "option_combo", "combo", "any")
+- `type` (optional, requires `currency`): Order type ("all", "limit", "trigger_all", "stop", "take", "trailing_stop")
+
+Passing `kind` or `type` without `currency` returns an error and cancels nothing.
 
 ### getOptionsChain ⚡
 
@@ -427,10 +432,11 @@ Get complete options chain for a specific expiry with real-time greeks, prices, 
 
 **Parameters:**
 - `currency` (required): **Settlement currency** for the options. Valid values: BTC, ETH, USDC, USDT, EURR
-  - Use `"USDC"` for USDC-settled options (ETH_USDC, SOL_USDC, AVAX_USDC, etc.)
-  - Use `"BTC"` for BTC-settled options (ETH, SOL, etc.)
-  - Use `"ETH"` for ETH-settled options
+  - Use `"USDC"` for USDC-settled options (BTC_USDC, ETH_USDC, SOL_USDC, AVAX_USDC, etc.)
+  - Use `"BTC"` for BTC-settled options (BTC-...)
+  - Use `"ETH"` for ETH-settled options (ETH-...)
 - `expiry` (required): Expiry date in format "9OCT25", "27MAR25", or "DDMMMYY"
+- `underlying` (optional): Underlying coin, e.g. `"SOL"`. Required for `"USDC"`, where one expiry lists several underlyings; without it the tool returns an error naming them.
 - `minStrike` (optional): Minimum strike price filter
 - `maxStrike` (optional): Maximum strike price filter
 
@@ -440,6 +446,7 @@ For USDC-settled ETH options (ETH_USDC):
 ```json
 {
   "currency": "USDC",
+  "underlying": "ETH",
   "expiry": "31OCT25",
   "minStrike": 4000,
   "maxStrike": 5000
@@ -524,7 +531,7 @@ Get recent trade history for an instrument.
 **Parameters:**
 - `instrumentName` (required): Instrument name
 - `count` (optional): Number of trades (default: 10, max: 1000)
-- `includeOld` (optional): Include old trades (default: false)
+- `sorting` (optional): Sort direction by trade ID ("asc", "desc", "default")
 
 **Example:**
 ```json
@@ -625,6 +632,7 @@ Get options chains for multiple expiries using a single WebSocket connection. Ex
 **Parameters:**
 - `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
 - `expiries` (required): Array of expiry dates in format "9OCT25" or "DDMMMYY"
+- `underlying` (optional): Underlying coin; required for `"USDC"` (see getOptionsChain)
 - `minStrike` (optional): Minimum strike price filter
 - `maxStrike` (optional): Maximum strike price filter
 
@@ -705,8 +713,8 @@ Get historical funding rate data for analyzing funding rate trends over time.
 
 **Parameters:**
 - `instrumentName` (required): The perpetual instrument name (e.g., "BTC-PERPETUAL")
-- `startTimestamp` (optional): Start time in UNIX milliseconds
-- `endTimestamp` (optional): End time in UNIX milliseconds
+- `startTimestamp` (required): Start time in UNIX milliseconds
+- `endTimestamp` (required): End time in UNIX milliseconds
 
 **Example:**
 ```json

@@ -102,15 +102,16 @@ export function registerDeribitTools(server, getClient) {
       inputSchema: {
         instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
         count: z.number().optional().describe('Number of trades to retrieve (default: 10, max: 1000)'),
-        include_old: z.boolean().optional().describe('Include old trades (default: false)'),
+        sorting: z.enum(['asc', 'desc', 'default']).optional()
+          .describe("Direction of results sorting by trade ID (optional)"),
       }
     },
-    async ({ instrument_name, count, include_old }) => {
+    async ({ instrument_name, count, sorting }) => {
       try {
         const result = await getClient().getLastTradesByInstrument(
           instrument_name,
           count || null,
-          include_old || false
+          sorting || null
         );
         return {
           content: [{ type: 'text', text: encode(result) }],
@@ -206,19 +207,21 @@ export function registerDeribitTools(server, getClient) {
     {
       description: 'Get complete options chain for a specific expiry with real-time greeks. Returns data in TOON format for optimal LLM comprehension. Uses WebSocket for efficient real-time data. Includes prices, volumes, open interest, delta, gamma, vega, theta, rho, and IV.',
       inputSchema: {
-        currency: z.string().describe("Settlement currency: 'BTC' for BTC-settled options (e.g., ETH-9OCT25-4000-C), 'USDC' for USDC-settled options (e.g., ETH_USDC-9OCT25-4000-C, SOL_USDC-...). Valid values: BTC, ETH, USDC, USDT, EURR"),
+        currency: z.string().describe("Settlement currency: 'BTC' or 'ETH' for the coin-settled books (e.g. BTC-9OCT25-100000-C, ETH-9OCT25-4000-C), 'USDC' for linear USDC-settled options (e.g. SOL_USDC-9OCT25-150-C, ETH_USDC-...)"),
         expiry: z.string().describe("Expiry date in format like '9OCT25', '27MAR25', or 'DDMMMYY'"),
+        underlying: z.string().optional().describe("Underlying coin (e.g. 'SOL', 'XRP', 'BTC'). Required for USDC-settled options, where one expiry lists several underlyings."),
         min_strike: z.number().optional().describe('Optional minimum strike price to filter results'),
         max_strike: z.number().optional().describe('Optional maximum strike price to filter results'),
       }
     },
-    async ({ currency, expiry, min_strike, max_strike }) => {
+    async ({ currency, expiry, underlying, min_strike, max_strike }) => {
       try {
         const result = await getClient().getOptionsChain(
           currency,
           expiry,
           min_strike || null,
-          max_strike || null
+          max_strike || null,
+          underlying || null
         );
         return {
           content: [{ type: 'text', text: result }],
@@ -311,19 +314,21 @@ export function registerDeribitTools(server, getClient) {
     {
       description: 'Get options chains for multiple expiries using a single WebSocket connection. Extremely efficient for getting data across multiple expiry dates.',
       inputSchema: {
-        currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH', 'USDC')"),
+        currency: z.string().describe("Settlement currency: 'BTC', 'ETH', or 'USDC' for linear options (see get_options_chain)"),
         expiries: z.array(z.string()).describe("Array of expiry dates in format like '9OCT25' or '29MAR24'"),
+        underlying: z.string().optional().describe("Underlying coin (e.g. 'SOL', 'XRP', 'BTC'). Required for USDC-settled options, where one expiry lists several underlyings."),
         min_strike: z.number().optional().describe("Minimum strike price filter (optional)"),
         max_strike: z.number().optional().describe("Maximum strike price filter (optional)"),
       }
     },
-    async ({ currency, expiries, min_strike, max_strike }) => {
+    async ({ currency, expiries, underlying, min_strike, max_strike }) => {
       try {
         const result = await getClient().getOptionsChains(
           currency,
           expiries,
           min_strike || null,
-          max_strike || null
+          max_strike || null,
+          underlying || null
         );
         // Format result with clear separators between expiries
         let output = '';
@@ -351,7 +356,8 @@ export function registerDeribitTools(server, getClient) {
         currency: z.string().describe("Currency symbol (e.g., 'BTC', 'ETH')"),
         start_timestamp: z.number().describe("Start time (UNIX timestamp in milliseconds)"),
         end_timestamp: z.number().describe("End time (UNIX timestamp in milliseconds)"),
-        resolution: z.string().describe("Resolution in minutes (e.g., '60' for hourly candles)"),
+        resolution: z.enum(['1', '60', '3600', '43200', '1D'])
+          .describe("Candle resolution in seconds: '1', '60' (1 minute), '3600' (hourly), '43200' (12 hours), or '1D' (daily)"),
       }
     },
     async ({ currency, start_timestamp, end_timestamp, resolution }) => {
@@ -450,17 +456,13 @@ export function registerDeribitTools(server, getClient) {
       description: 'Get historical funding rate data for analyzing funding rate trends over time.',
       inputSchema: {
         instrument_name: z.string().describe("The instrument name (e.g., 'BTC-PERPETUAL')"),
-        start_timestamp: z.number().optional().describe("Start time (UNIX timestamp in milliseconds)"),
-        end_timestamp: z.number().optional().describe("End time (UNIX timestamp in milliseconds)"),
+        start_timestamp: z.number().describe("Start time (UNIX timestamp in milliseconds)"),
+        end_timestamp: z.number().describe("End time (UNIX timestamp in milliseconds)"),
       }
     },
     async ({ instrument_name, start_timestamp, end_timestamp }) => {
       try {
-        const result = await getClient().getFundingRateHistory(
-          instrument_name,
-          start_timestamp || null,
-          end_timestamp || null
-        );
+        const result = await getClient().getFundingRateHistory(instrument_name, start_timestamp, end_timestamp);
         return {
           content: [{ type: 'text', text: encode(result) }],
         };
@@ -709,7 +711,7 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
       description: '[REQUIRES AUTH] Get current positions for a specific currency. Shows open positions with sizes, P&L, and other details.',
       inputSchema: {
         currency: z.string().describe("Currency (e.g., 'BTC', 'ETH', 'USDC')"),
-        kind: z.enum(['future', 'option', 'spot', 'future_combo', 'option_combo']).optional()
+        kind: z.enum(['future', 'option', 'future_combo', 'option_combo']).optional()
           .describe('Instrument kind filter (optional)'),
       }
     },
@@ -735,9 +737,12 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
       description: '[REQUIRES AUTH] Get open orders, optionally filtered by currency, instrument kind, or order type.',
       inputSchema: {
         currency: z.string().optional().describe("Currency filter (e.g., 'BTC', 'ETH')"),
-        kind: z.enum(['future', 'option', 'spot']).optional()
+        kind: z.enum(['future', 'option', 'spot', 'future_combo', 'option_combo']).optional()
           .describe('Instrument kind filter'),
-        type: z.enum(['limit', 'market', 'stop_limit', 'stop_market']).optional()
+        type: z.enum([
+          'all', 'limit', 'trigger_all', 'stop_all', 'stop_limit', 'stop_market',
+          'take_all', 'take_limit', 'take_market', 'trailing_all', 'trailing_stop',
+        ]).optional()
           .describe('Order type filter'),
       }
     },
@@ -764,14 +769,22 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
   server.registerTool(
     'cancel_all_orders',
     {
-      description: '[REQUIRES AUTH] ⚠️ Cancel ALL open orders, optionally filtered by currency, kind, or type.',
+      description: '[REQUIRES AUTH] ⚠️ Cancel ALL open orders, optionally filtered by currency, kind, or type. Filtering by kind or type requires currency.',
       inputSchema: {
-        currency: z.string().optional().describe("Currency filter"),
-        kind: z.enum(['future', 'option', 'spot']).optional().describe('Instrument kind filter'),
-        type: z.enum(['limit', 'market', 'stop_limit', 'stop_market']).optional().describe('Order type filter'),
+        currency: z.string().optional().describe("Currency filter (required when kind or type is given)"),
+        kind: z.enum(['future', 'option', 'spot', 'future_combo', 'option_combo', 'combo', 'any']).optional()
+          .describe('Instrument kind filter (requires currency)'),
+        type: z.enum(['all', 'limit', 'trigger_all', 'stop', 'take', 'trailing_stop']).optional()
+          .describe('Order type filter (requires currency)'),
       }
     },
     async ({ currency, kind, type }) => {
+      if (!currency && (kind || type)) {
+        return {
+          content: [{ type: 'text', text: 'Error: currency is required to filter by kind or type. No orders were cancelled.' }],
+          isError: true,
+        };
+      }
       try {
         const result = await getClient().cancelAllOrders(
           currency || null,
@@ -831,16 +844,17 @@ Recommended scopes: 'account:read', 'trade:read' (no write permissions needed un
         currency: z.string().describe("Currency (e.g., 'BTC', 'ETH')"),
         kind: z.enum(['future', 'option', 'spot']).optional().describe('Instrument kind filter'),
         count: z.number().optional().describe("Number of trades to retrieve (default: 100)"),
-        include_old: z.boolean().optional().describe("Include old trades (default: false)"),
+        historical: z.boolean().optional()
+          .describe("false (default): recent trades from the last 24h; true: historical trade records"),
       }
     },
-    async ({ currency, kind, count, include_old }) => {
+    async ({ currency, kind, count, historical }) => {
       try {
         const result = await getClient().getUserTrades(
           currency,
           kind || null,
           count || 100,
-          include_old || false
+          historical || false
         );
         return {
           content: [{ type: 'text', text: encode(result) }],
