@@ -31,9 +31,13 @@ Each [Hermes Agent](https://hermes-agent.nousresearch.com/docs/) profile has its
 hermes -p <profile> plugins install azhang/deribit-mcp/plugins/deribit
 ```
 
-The dashboard's Plugins page takes the same `azhang/deribit-mcp/plugins/deribit` under "Install from GitHub". It isn't in the Hermes catalog, so Hermes warns that the source is unreviewed and security-scans the plugin before it installs. Enable it when asked (`hermes -p <profile> plugins enable deribit` later): Hermes keeps Agent Plugins packages disabled until you do.
+It isn't in the Hermes catalog, so Hermes warns that the source is unreviewed and security-scans the plugin before it installs. Enable it when asked (`hermes -p <profile> plugins enable deribit` later): Hermes keeps Agent Plugins packages disabled until you do. `hermes -p <profile> plugins update deribit` pulls the latest version from main.
 
-That gives the profile the skill and the hosted server, which is all you need for market data. The skill's name is namespaced (`agent-plugin-deribit-…:deribit`); the agent finds it with `skills_list`, and `hermes skills list` doesn't show it. The scripts need Node 22+ on the machine Hermes runs commands on.
+Restart Hermes afterwards (for Docker, `docker restart <container>`) and start a new chat. A server that was already running, including the one Hermes Desktop connects to, doesn't load a plugin installed from the CLI until then.
+
+The dashboard's Plugins page also takes `azhang/deribit-mcp/plugins/deribit` under "Install from GitHub", but it installs into the dashboard's own profile whatever profile is selected ([hermes-agent#138094](https://github.com/NousResearch/hermes-agent/issues/138094)). Use the CLI for any other profile.
+
+That gives the profile the skill and the hosted server, which is all you need for market data. The skill's name is namespaced (`agent-plugin-deribit-…:deribit`) and listed under the "plugin" category; the agent finds it with `skills_list`, and `hermes skills list` doesn't show it. `hermes mcp test` and `hermes mcp list` only cover servers in `config.yaml`, so they don't show the plugin's server either. The scripts need Node 22+ on the machine Hermes runs commands on.
 
 ### 2. Your account (optional)
 
@@ -69,4 +73,4 @@ The dashboard's "Add MCP server" form takes the same command, args and environme
 
 ### 3. Check it
 
-Run `hermes mcp test deribit`, then `/reload-mcp` in a session (a running gateway picks up `config.yaml` changes on its own within about a minute). With Tool Search on, Hermes's default, the Deribit tools sit behind `tool_search` until the model asks for them; there's nothing to configure.
+For the local server in `config.yaml`, run `hermes mcp test deribit`, then `/reload-mcp` in a CLI or messaging session (a running gateway picks up `config.yaml` changes on its own within about a minute; otherwise restart Hermes). With Tool Search on, Hermes's default, the Deribit tools sit behind `tool_search` until the model asks for them; there's nothing to configure.
