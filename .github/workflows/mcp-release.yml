@@ -26,7 +26,7 @@ jobs:
           if [ "mcp-v$version" != "$GITHUB_REF_NAME" ]; then
             echo "Tag $GITHUB_REF_NAME does not match packages/mcp version $version"; exit 1
           fi
-          npm install --no-package-lock
+          npm ci
           npm test
           npm run build:stdio
           npm pack ./bundle
