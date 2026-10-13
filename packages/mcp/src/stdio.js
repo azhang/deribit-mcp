@@ -38,11 +38,24 @@ async function proxySupport() {
   return { WebSocket: ProxiedWebSocket };
 }
 
+/**
+ * Some clients (Hermes, for one) pass an unset `${VAR}` reference through as literal text.
+ * Taken as a key, it makes Deribit reject even public calls, so treat it as no key.
+ */
+function credential(name) {
+  const value = process.env[name];
+  if (/^\$\{[^}]*\}$/.test(value?.trim() ?? '')) {
+    log(`${name} is an unfilled placeholder (${value.trim()}); running without a key`);
+    return null;
+  }
+  return value || null;
+}
+
 const env = process.env.DERIBIT_ENV === 'test' ? 'test' : 'production';
 const client = new Deribit({
   env,
-  clientId: process.env.DERIBIT_CLIENT_ID || null,
-  clientSecret: process.env.DERIBIT_CLIENT_SECRET || null,
+  clientId: credential('DERIBIT_CLIENT_ID'),
+  clientSecret: credential('DERIBIT_CLIENT_SECRET'),
   ...(await proxySupport()),
 });
 // Without a key there is nothing private to call, so behave like the hosted server.

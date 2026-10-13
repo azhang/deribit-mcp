@@ -56,6 +56,18 @@ for (const [kind, entry] of Object.entries(entries)) {
     await client.close();
   });
 
+  // Hermes passes an unset `${VAR}` through as literal text; that must not count as a key.
+  test(`stdio ${kind} treats an unfilled \${VAR} key as no key`, async () => {
+    const { client } = await connectStdio({
+      entry,
+      era: '2026-07-28',
+      env: { DERIBIT_CLIENT_ID: '${DERIBIT_CLIENT_ID}', DERIBIT_CLIENT_SECRET: '${DERIBIT_CLIENT_SECRET}' },
+    });
+    const names = (await client.listTools()).tools.map((t) => t.name);
+    assert.ok(names.includes('tickers') && !names.includes('account'));
+    await client.close();
+  });
+
   // The proxy path loads undici, which is CommonJS: the case a bundle is most likely to break.
   test(`stdio ${kind} starts with HTTPS_PROXY set`, async () => {
     const { client } = await connectStdio({ entry, era: '2026-07-28', env: { HTTPS_PROXY: 'http://127.0.0.1:9' } });

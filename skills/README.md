@@ -69,7 +69,7 @@ mcp_servers:
 
 `--allow-remote=root` is needed on npm 12, which refuses to install from a URL by default; older npm ignores it.
 
-Leave the two key lines out until the key is actually in the profile's `.env`: an unset `${VAR}` reaches the server as the literal text, which it takes for a key, and Deribit then rejects even public calls. Without them the server serves public data only.
+If the key isn't in the profile's `.env` yet, an unset `${VAR}` reaches the server as literal text. From `mcp-v2.0.0-alpha.1` the server treats that as no key, logs a warning and serves public data only; `mcp-v2.0.0-alpha.0` takes it for a key and Deribit then rejects even public calls, so with that release leave the two key lines out until the key is set.
 
 The dashboard's "Add MCP server" form takes the same command, args and environment. To update, change `<version>` in both places. Without network access at startup, build the file yourself instead (`npm run build:stdio` in `packages/mcp`) and use `command: node` with `args: [/path/to/deribit-mcp.mjs]`.
 

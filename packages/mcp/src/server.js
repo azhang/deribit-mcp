@@ -4,7 +4,7 @@ import { registerSurfaceTool } from './tools/surface.js';
 import { registerGenericTools } from './tools/generic.js';
 import { registerAccountTools } from './tools/account.js';
 
-export const VERSION = '2.0.0-alpha.0';
+export const VERSION = '2.0.0-alpha.1';
 
 const INSTRUCTIONS = {
   hosted:

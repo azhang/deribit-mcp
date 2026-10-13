@@ -1,6 +1,6 @@
 {
   "name": "@deribit-mcp/server",
-  "version": "2.0.0-alpha.0",
+  "version": "2.0.0-alpha.1",
   "private": true,
   "description": "Deribit MCP server v2: hosted public market data, or local with your own key",
   "type": "module",
