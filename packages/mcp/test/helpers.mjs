@@ -8,7 +8,7 @@ import { createPolicy } from '../src/classify.js';
  * A Deribit client whose HTTP calls go to `routes[method](params)` and whose
  * WebSocket answers every subscribe with `tickers[instrument]` snapshots.
  */
-export function stubDeribit({ routes = {}, tickers = {}, credentials = false } = {}) {
+export function stubDeribit({ routes = {}, tickers = {}, channels = {}, credentials = false } = {}) {
   const calls = [];
   const fetch = async (_url, init) => {
     const { method, params, id } = JSON.parse(init.body);
@@ -32,7 +32,7 @@ export function stubDeribit({ routes = {}, tickers = {}, credentials = false } =
         reply(msg.params.channels);
         for (const channel of msg.params.channels) {
           const name = channel.replace(/^incremental_ticker\./, '');
-          const data = { type: 'snapshot', instrument_name: name, ...(tickers[name] ?? {}) };
+          const data = channel in channels ? channels[channel] : { type: 'snapshot', instrument_name: name, ...(tickers[name] ?? {}) };
           setTimeout(() => this.onmessage?.({ data: JSON.stringify({ method: 'subscription', params: { channel, data } }) }), 1);
         }
       } else {
