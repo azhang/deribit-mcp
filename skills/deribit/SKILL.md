@@ -1,6 +1,6 @@
 ---
 name: deribit
-description: "How to work with Deribit crypto derivatives data correctly: options chains, implied volatility surfaces and skew, greeks, futures and perpetuals, funding and basis, DVOL, order books, and (with a local key) account positions and orders. Covers the deribit MCP server's tools and bundled scripts that run without it. Use this whenever the user asks about Deribit, BTC/ETH/SOL options or perps, crypto implied volatility, vol smiles or term structure, risk reversals, funding or carry, or calls any deribit tool (options_chain, vol_surface, tickers, funding, deribit_call, account, cancel_orders, ...), even if they don't name Deribit."
+description: "Deribit crypto derivatives: options chains, IV surfaces and skew, greeks, futures, perps, funding, DVOL, order books, account tools. Use for any Deribit, BTC/ETH/SOL options or perps, or crypto vol question, or when calling a deribit tool."
 ---
 
 # Deribit
