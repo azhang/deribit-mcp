@@ -10,7 +10,7 @@ It serves MCP spec 2026-07-28 and earlier clients, from a single server factory.
 |---|---|---|
 | Data | Public market data | Market data and **your account** |
 | Deribit key | Server-wide read-only key, used only for rate limits | Yours, from the environment |
-| Tools | 10 | 13 |
+| Tools | 11 | 14 |
 
 ### Local
 
@@ -50,6 +50,7 @@ npm run dev                                     # http://localhost:8787/deribit/
 
 | Tool | What it does |
 |---|---|
+| `vol_surface` | Implied-vol surface for one underlying from a single `markprice.options` message (about 0.3 s when warm): term structure (ATM IV, approximate 25-delta risk reversal and butterfly, implied forward) or per-strike smiles. No greeks. |
 | `options_chain` | Live chain with greeks and IV for one underlying and one or more expiries (one WebSocket snapshot). For USDC options pass `underlying`. |
 | `tickers` | Live tickers for up to 100 instruments. |
 | `order_books` | Depth for up to 20 instruments. |

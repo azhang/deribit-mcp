@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { registerMarketTools } from './tools/market.js';
+import { registerSurfaceTool } from './tools/surface.js';
 import { registerGenericTools } from './tools/generic.js';
 import { registerAccountTools } from './tools/account.js';
 
@@ -27,6 +28,7 @@ export function createServer({ client, policy }) {
     { instructions: INSTRUCTIONS[policy.mode] },
   );
   registerMarketTools(server, client);
+  registerSurfaceTool(server, client);
   if (policy.mode === 'local') registerAccountTools(server, client);
   registerGenericTools(server, client, policy);
   return server;
