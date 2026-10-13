@@ -114,9 +114,13 @@ export class Deribit {
    * Returns a handle whose `unsubscribe()` removes this listener.
    */
   async subscribe(channelNames, listener) {
-    const list = [].concat(channelNames);
-    await this.ws.subscribe(list, listener);
-    return { channels: list, unsubscribe: () => this.ws.unsubscribe(list, listener) };
+    const requested = [].concat(channelNames);
+    const active = await this.ws.subscribe(requested, listener);
+    return {
+      channels: active,
+      rejected: requested.filter((c) => !active.includes(c)),
+      unsubscribe: () => this.ws.unsubscribe(active, listener),
+    };
   }
 
   /**
@@ -124,11 +128,15 @@ export class Deribit {
    * `incremental_ticker.*` channels, later `change` messages are merged into the
    * first `snapshot` so the result is never a partial update.
    *
+   * Channels Deribit refuses (e.g. an unknown or expired instrument) don't block the
+   * others: they are left out of the result and listed in `snapshot.rejected`.
+   *
    * @returns {Promise<Record<string, any>>} channel -> latest full data
    */
   async snapshot(channelNames, { timeoutMs = this.timeoutMs } = {}) {
     const list = [...new Set([].concat(channelNames))];
     const latest = new Map();
+    let expected = list.length;
     let done;
     let fail;
     const finished = new Promise((resolve, reject) => { done = resolve; fail = reject; });
@@ -141,21 +149,27 @@ export class Deribit {
       } else {
         latest.set(channel, data);
       }
-      if (latest.size === list.length) done();
+      if (latest.size >= expected) done();
     };
     listener.onClose = (reason) => fail(new DeribitTransportError('snapshot', `WebSocket ${reason}`));
 
+    let active = [];
     const timer = setTimeout(() => {
-      const missing = list.filter((c) => !latest.has(c));
-      fail(new DeribitTransportError('snapshot', `timed out waiting for ${missing.length}/${list.length} channels (e.g. ${missing.slice(0, 3).join(', ')})`));
+      const missing = active.filter((c) => !latest.has(c));
+      fail(new DeribitTransportError('snapshot', `timed out waiting for ${missing.length}/${active.length} channels (e.g. ${missing.slice(0, 3).join(', ')})`));
     }, timeoutMs);
     try {
-      await this.ws.subscribe(list, listener);
+      active = await this.ws.subscribe(list, listener);
+      expected = active.length;
+      if (latest.size >= expected) done();
       await finished;
-      return Object.fromEntries(list.map((c) => [c, latest.get(c)]));
+      const result = Object.fromEntries(active.map((c) => [c, latest.get(c)]));
+      const rejected = list.filter((c) => !active.includes(c));
+      if (rejected.length) Object.defineProperty(result, 'rejected', { value: rejected, enumerable: false });
+      return result;
     } finally {
       clearTimeout(timer);
-      await this.ws.unsubscribe(list, listener).catch(() => {});
+      await this.ws.unsubscribe(active, listener).catch(() => {});
     }
   }
 

@@ -2,8 +2,10 @@ import { DeribitError, DeribitTransportError } from './errors.js';
 
 /**
  * JSON-RPC over WebSocket. Opens lazily, shares one handshake between concurrent
- * callers, answers heartbeats, re-authenticates after reconnecting, and closes
- * itself after `idleTimeoutMs` with no pending requests or subscriptions.
+ * callers, and answers heartbeats. If the server drops the connection while
+ * subscriptions are active, it reconnects with backoff, re-authenticates and
+ * resubscribes. Closes itself after `idleTimeoutMs` with no pending requests or
+ * subscriptions.
  */
 export class WsTransport {
   constructor({ url, auth, timeoutMs, idleTimeoutMs, WebSocketImpl, clientName }) {
@@ -20,6 +22,8 @@ export class WsTransport {
     this.listeners = new Map(); // channel -> Set<fn>
     this.latest = new Map(); // channel -> latest full state (incremental changes merged)
     this.idleTimer = null;
+    this.reconnectTimer = null;
+    this.reconnectDelayMs = 0;
   }
 
   get connected() {
@@ -62,7 +66,7 @@ export class WsTransport {
     }
   }
 
-  #onClose(ws, reason) {
+  #onClose(ws, reason, { byClient = false } = {}) {
     if (this.ws !== ws) return;
     this.ws = null;
     this.latest.clear();
@@ -74,6 +78,23 @@ export class WsTransport {
     for (const [channel, fns] of this.listeners) {
       for (const fn of fns) fn.onClose?.(reason, channel);
     }
+    if (!byClient) this.#scheduleReconnect();
+  }
+
+  /** Reconnect (and resubscribe, in #open) while listeners remain; backoff 1s doubling to 30s. */
+  #scheduleReconnect() {
+    if (this.reconnectTimer || this.listeners.size === 0) return;
+    this.reconnectDelayMs = Math.min(30_000, this.reconnectDelayMs ? this.reconnectDelayMs * 2 : 1_000);
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      if (this.listeners.size === 0) return;
+      try {
+        await this.connect();
+        this.reconnectDelayMs = 0;
+      } catch {
+        this.#scheduleReconnect();
+      }
+    }, this.reconnectDelayMs);
   }
 
   #onMessage(msg) {
@@ -102,6 +123,10 @@ export class WsTransport {
   }
 
   #send(method, params) {
+    // readyState is undefined on minimal WebSocket implementations; 1 is OPEN.
+    if (!this.ws || (this.ws.readyState !== undefined && this.ws.readyState !== 1)) {
+      return Promise.reject(new DeribitTransportError(method, 'WebSocket is not open'));
+    }
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -109,7 +134,13 @@ export class WsTransport {
         reject(new DeribitTransportError(method, `timed out after ${this.timeoutMs}ms`));
       }, this.timeoutMs);
       this.pending.set(id, { resolve, reject, timer, method });
-      this.ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+      try {
+        this.ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+      } catch (cause) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(new DeribitTransportError(method, `send failed: ${cause.message}`, { cause }));
+      }
     });
   }
 
@@ -124,7 +155,11 @@ export class WsTransport {
     return this.#send(priv ? 'private/subscribe' : 'public/subscribe', { channels });
   }
 
-  /** Add a listener; subscribes on the server only for channels not already subscribed. */
+  /**
+   * Add a listener; subscribes on the server only for channels not already subscribed.
+   * @returns {Promise<string[]>} the channels now active. Deribit silently skips invalid
+   *   channels (e.g. unknown instruments); those are dropped and not returned.
+   */
   async subscribe(channels, listener) {
     this.#cancelIdleClose();
     await this.connect();
@@ -137,14 +172,17 @@ export class WsTransport {
       const known = this.latest.get(c);
       if (known && !fresh.includes(c)) queueMicrotask(() => listener({ ...known, type: 'snapshot' }, c));
     }
-    if (fresh.length) {
-      try {
-        await this.#subscribeRaw(fresh);
-      } catch (error) {
-        this.#removeListener(channels, listener);
-        throw error;
-      }
+    if (!fresh.length) return channels;
+    let accepted;
+    try {
+      accepted = new Set(await this.#subscribeRaw(fresh));
+    } catch (error) {
+      this.#removeListener(channels, listener);
+      throw error;
     }
+    const rejected = fresh.filter((c) => !accepted.has(c));
+    if (rejected.length) this.#removeListener(rejected, listener);
+    return channels.filter((c) => !rejected.includes(c));
   }
 
   #removeListener(channels, listener) {
@@ -192,9 +230,11 @@ export class WsTransport {
 
   close() {
     this.#cancelIdleClose();
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     const ws = this.ws;
     if (ws) {
-      this.#onClose(ws, 'closed by client');
+      this.#onClose(ws, 'closed by client', { byClient: true });
       ws.close();
     }
   }
