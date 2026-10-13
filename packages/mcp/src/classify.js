@@ -9,7 +9,7 @@
  * The result for the current spec is checked in as src/generated/method-classes.json
  * (`npm run classify`), and a test fails if it drifts, so every change is reviewed.
  */
-import { methods } from '@deribit-mcp/client';
+import { methods } from 'deribit-client-js';
 
 /** Transport/session plumbing the client handles itself. */
 export const SESSION_METHODS = new Set([

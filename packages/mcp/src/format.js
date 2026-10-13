@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DeribitError, DeribitTransportError, DeribitValidationError } from '@deribit-mcp/client';
+import { DeribitError, DeribitTransportError, DeribitValidationError } from 'deribit-client-js';
 
 /** Local servers only: a `save_to` param that writes the table to a CSV file. */
 export function saveParam(deps) {

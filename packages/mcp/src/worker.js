@@ -9,7 +9,7 @@
  * live snapshots and closed when the request ends.
  */
 import { createMcpHandler } from 'agents/mcp/server';
-import { Deribit } from '@deribit-mcp/client';
+import { Deribit } from 'deribit-client-js';
 import { createServer } from './server.js';
 import { createPolicy } from './classify.js';
 

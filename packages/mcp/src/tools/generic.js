@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { search, methods, channels, validateParams } from '@deribit-mcp/client';
+import { search, methods, channels, validateParams } from 'deribit-client-js';
 import { ok, fail, limitList, safe, table, isTable, tableOrSave, saveParam } from '../format.js';
 import { requireConfirmation } from '../confirm.js';
 

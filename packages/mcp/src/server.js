@@ -20,7 +20,7 @@ const INSTRUCTIONS = {
 /**
  * Build a server for one request (hosted) or one connection (stdio).
  *
- * @param {{ client: import('@deribit-mcp/client').Deribit, policy: ReturnType<import('./classify.js').createPolicy>,
+ * @param {{ client: import('deribit-client-js').Deribit, policy: ReturnType<import('./classify.js').createPolicy>,
  *   market?: { snapshot: Function }, save?: Function }} deps
  *   `market` and `save` are local-only extras (live cache, CSV files); the hosted server omits them.
  */

@@ -14,7 +14,7 @@
  * stdout carries only MCP messages; logs go to stderr.
  */
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
-import { Deribit } from '@deribit-mcp/client';
+import { Deribit } from 'deribit-client-js';
 import { createServer } from './server.js';
 import { createPolicy } from './classify.js';
 import { LiveMarket } from './live.js';
