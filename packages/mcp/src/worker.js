@@ -48,16 +48,30 @@ export default {
     }
 
     const client = clientFor(env);
+    let response;
     try {
-      // JSON responses resolve only after the tool finishes, so the socket can be closed here.
-      // (These tools emit no progress notifications, which JSON mode would drop.)
-      return await createMcpHandler(() => createServer({ client, policy }), {
+      // JSON mode (2026-07-28 clients) resolves only after the tool finishes. The legacy
+      // lane ignores responseMode and streams SSE, so the tool may still be running when
+      // the Response comes back: close the socket when the body ends, not here.
+      response = await createMcpHandler(() => createServer({ client, policy }), {
         route: ROUTE,
         responseMode: 'json',
         allowedHostnames: env.ALLOWED_HOSTNAMES ? env.ALLOWED_HOSTNAMES.split(',') : undefined,
       })(request, env, ctx);
-    } finally {
+    } catch (error) {
       client.close();
+      throw error;
     }
+    return closeWhenDone(response, client, ctx);
   },
 };
+
+function closeWhenDone(response, client, ctx) {
+  if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
+    client.close();
+    return response;
+  }
+  const { readable, writable } = new TransformStream();
+  ctx.waitUntil(response.body.pipeTo(writable).catch(() => {}).finally(() => client.close()));
+  return new Response(readable, response);
+}
