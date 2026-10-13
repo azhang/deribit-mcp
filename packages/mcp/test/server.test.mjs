@@ -217,3 +217,29 @@ test('deribit_call keeps non-tabular results as JSON', async () => {
   assert.deepEqual(r, { index_price: 1, estimated_delivery_price: 1 });
   await mcp.close();
 });
+
+test('volatility pages through DVOL and compares implied vs realised over their overlap only', async () => {
+  const DAY = 86_400_000;
+  const now = Date.now();
+  const candle = (ts, v) => [ts, v, v, v, v];
+  const pages = [
+    { data: [candle(now - 1 * DAY, 50), candle(now - 2 * DAY, 50)], continuation: now - 2 * DAY },
+    { data: [candle(now - 20 * DAY, 30), candle(now - 25 * DAY, 30)], continuation: null },
+  ];
+  const { client, calls } = stubDeribit({
+    routes: {
+      'public/get_volatility_index_data': () => pages.shift(),
+      // realised only covers the last ~3 days here
+      'public/get_historical_volatility': () => [[now - 3 * DAY, 40], [now - 1 * DAY, 44]],
+    },
+  });
+  const mcp = await connect({ mode: 'hosted', deribit: client });
+  const r = body(await mcp.callTool({ name: 'volatility', arguments: { currency: 'BTC', days: 30 } }));
+  assert.equal(calls.filter((c) => c.method === 'public/get_volatility_index_data').length, 2, 'followed continuation');
+  assert.equal(r.dvol.candles, 4);
+  assert.equal(r.dvol.mean, 40); // all 4 candles
+  assert.equal(r.overlap.dvol_mean, 50); // only the 2 candles inside realised coverage
+  assert.equal(r.overlap.realised_mean, 42);
+  assert.equal(r.overlap.spread, 8);
+  await mcp.close();
+});

@@ -44,7 +44,7 @@ export function toolError(error) {
     return fail(`Deribit rejected the call: ${error.message}.${hint}`); // message already names the method
   }
   if (error instanceof DeribitTransportError) {
-    return fail(`Could not reach Deribit for ${error.method}: ${error.message}. This is usually transient; retry.`);
+    return fail(`Could not reach Deribit (${error.message}). Network errors and timeouts are usually transient; retry.`); // message names the method
   }
   return fail(error?.message ?? String(error));
 }

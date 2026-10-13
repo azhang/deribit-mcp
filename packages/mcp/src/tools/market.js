@@ -158,38 +158,67 @@ export function registerMarketTools(server, client) {
 
   server.registerTool('volatility', {
     title: 'Implied vs realised volatility',
-    description: "DVOL (Deribit's 30-day implied volatility index) alongside realised volatility for BTC or ETH, with a summary of the window. Values are in percent.",
+    description:
+      "DVOL (Deribit's 30-day implied volatility index) alongside realised volatility for BTC or ETH. Values are in percent. " +
+      'Deribit only publishes about the last 16 days of realised volatility, so the implied-vs-realised comparison covers the overlap.',
     inputSchema: z.object({
       currency: z.enum(['BTC', 'ETH']),
       days: z.number().min(1).max(365).default(30),
       resolution: z.enum(['1h', '12h', '1D']).default('1D'),
-      include_series: z.boolean().default(false).describe('Include the DVOL candles and realised series.'),
+      include_series: z.boolean().default(false).describe('Include the DVOL candles, with the latest realised value at each timestamp.'),
       format: FORMAT,
     }),
     annotations: { title: 'Implied vs realised volatility', ...READ },
   }, safe(async ({ currency, days, resolution, include_series, format }) => {
     const end = Date.now();
+    const start = end - days * DAY_MS;
     const res = { '1h': 3600, '12h': 43200, '1D': '1D' }[resolution];
-    const [dvol, realised] = await Promise.all([
-      client.public.get_volatility_index_data({ currency, start_timestamp: end - days * DAY_MS, end_timestamp: end, resolution: res }),
-      client.public.get_historical_volatility({ currency }),
-    ]);
-    const candles = dvol.data ?? [];
-    const rv = realised.filter(([ts]) => ts >= end - days * DAY_MS);
-    const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
-    const dvolLast = candles.at(-1)?.[4] ?? null;
-    const rvLast = rv.at(-1)?.[1] ?? null;
-    const summary = {
-      currency, window_days: days,
-      latest: { dvol: dvolLast, realised: rvLast, spread: dvolLast !== null && rvLast !== null ? dvolLast - rvLast : null },
-      window_mean: { dvol: mean(candles.map((c) => c[4])), realised: mean(rv.map((r) => r[1])) },
+
+    // DVOL returns at most 1000 candles per call, newest first, with `continuation`
+    // as the end_timestamp for the next (older) page.
+    const fetchDvol = async () => {
+      const byTs = new Map();
+      let pageEnd = end;
+      for (let page = 0; page < 10 && pageEnd > start; page += 1) {
+        const { data = [], continuation } = await client.public.get_volatility_index_data({
+          currency, start_timestamp: start, end_timestamp: pageEnd, resolution: res,
+        });
+        for (const candle of data) byTs.set(candle[0], candle);
+        if (!continuation || continuation >= pageEnd) break;
+        pageEnd = continuation;
+      }
+      return [...byTs.values()].sort((a, b) => a[0] - b[0]);
     };
+    const [candles, realisedAll] = await Promise.all([fetchDvol(), client.public.get_historical_volatility({ currency })]);
+    const realised = realisedAll.filter(([ts]) => ts >= start).sort((a, b) => a[0] - b[0]);
+
+    const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+    const realisedFrom = realised[0]?.[0];
+    const overlap = realisedFrom === undefined ? [] : candles.filter(([ts]) => ts >= realisedFrom);
+    const dvolLast = candles.at(-1)?.[4] ?? null;
+    const rvLast = realised.at(-1)?.[1] ?? null;
+    const summary = {
+      currency, window_days: days, resolution,
+      latest: { dvol: dvolLast, realised: rvLast, spread: dvolLast !== null && rvLast !== null ? dvolLast - rvLast : null },
+      dvol: { candles: candles.length, mean: mean(candles.map((c) => c[4])), from: candles[0]?.[0], to: candles.at(-1)?.[0] },
+      realised: { points: realised.length, from: realisedFrom, to: realised.at(-1)?.[0], note: 'Deribit publishes only about the last 16 days of realised volatility.' },
+      // Like-for-like comparison over the period both series cover
+      overlap: {
+        dvol_mean: mean(overlap.map((c) => c[4])),
+        realised_mean: mean(realised.map((r) => r[1])),
+      },
+    };
+    if (summary.overlap.dvol_mean !== null && summary.overlap.realised_mean !== null) {
+      summary.overlap.spread = summary.overlap.dvol_mean - summary.overlap.realised_mean;
+    }
     if (!include_series) return ok(summary);
-    // One row per timestamp from either series; realised is daily, DVOL follows `resolution`.
-    const rowsByTs = new Map();
-    for (const [timestamp, open, high, low, close] of candles) rowsByTs.set(timestamp, { timestamp, dvol_open: open, dvol_high: high, dvol_low: low, dvol_close: close });
-    for (const [timestamp, value] of rv) rowsByTs.set(timestamp, { ...(rowsByTs.get(timestamp) ?? { timestamp }), realised: value });
-    const series = [...rowsByTs.values()].sort((a, b) => a.timestamp - b.timestamp);
+
+    // One row per DVOL candle; realised is the latest value at or before that time (as-of join).
+    let j = -1;
+    const series = candles.map(([timestamp, open, high, low, close]) => {
+      while (j + 1 < realised.length && realised[j + 1][0] <= timestamp) j += 1;
+      return { timestamp, dvol_open: open, dvol_high: high, dvol_low: low, dvol_close: close, realised: j >= 0 ? realised[j][1] : undefined };
+    });
     return table(summary, 'series', series, format);
   }));
 
@@ -209,6 +238,7 @@ export function registerMarketTools(server, client) {
   }, safe(async ({ view, currency, kind, underlying, expired, limit, format }) => {
     if (view === 'expirations') {
       if (kind && !['future', 'option'].includes(kind)) return fail("expirations supports kind 'future' or 'option'.");
+      if (currency === 'EURR') return fail("expirations doesn't support EURR; use BTC, ETH, USDC, USDT or any.");
       return ok(await client.public.get_expirations({ currency, kind: kind ?? 'any' }));
     }
     if (view === 'combos') {

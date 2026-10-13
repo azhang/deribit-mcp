@@ -4,6 +4,9 @@
  * Secrets DERIBIT_CLIENT_ID / DERIBIT_CLIENT_SECRET (a read-only key) authenticate every
  * upstream call, so Deribit applies per-user rather than per-IP rate limits (Workers share
  * IPs). Private tools are never registered, so that key's account is never exposed.
+ *
+ * Each request gets its own Deribit client and WebSocket, opened only if a tool needs
+ * live snapshots and closed when the request ends.
  */
 import { createMcpHandler } from 'agents/mcp/server';
 import { Deribit } from '@deribit-mcp/client';
@@ -12,22 +15,15 @@ import { createPolicy } from './classify.js';
 
 const ROUTE = '/deribit/v2/mcp';
 
-// One client per isolate: reuses the WebSocket across requests until it goes idle.
-let shared;
+// A client per request: Workers forbid using an I/O object (here, the WebSocket)
+// created while handling one request from another request.
 function clientFor(env) {
-  const key = `${env.DERIBIT_CLIENT_ID ?? ''}:${env.DERIBIT_ENV ?? ''}`;
-  if (shared?.key !== key) {
-    shared?.client.close();
-    shared = {
-      key,
-      client: new Deribit({
-        env: env.DERIBIT_ENV === 'test' ? 'test' : 'production',
-        clientId: env.DERIBIT_CLIENT_ID || null,
-        clientSecret: env.DERIBIT_CLIENT_SECRET || null,
-      }),
-    };
-  }
-  return shared.client;
+  return new Deribit({
+    env: env.DERIBIT_ENV === 'test' ? 'test' : 'production',
+    clientId: env.DERIBIT_CLIENT_ID || null,
+    clientSecret: env.DERIBIT_CLIENT_SECRET || null,
+    idleTimeoutMs: 0, // closed explicitly below
+  });
 }
 
 const policy = createPolicy({ mode: 'hosted' });
@@ -52,9 +48,16 @@ export default {
     }
 
     const client = clientFor(env);
-    return createMcpHandler(() => createServer({ client, policy }), {
-      route: ROUTE,
-      allowedHostnames: env.ALLOWED_HOSTNAMES ? env.ALLOWED_HOSTNAMES.split(',') : undefined,
-    })(request, env, ctx);
+    try {
+      // JSON responses resolve only after the tool finishes, so the socket can be closed here.
+      // (These tools emit no progress notifications, which JSON mode would drop.)
+      return await createMcpHandler(() => createServer({ client, policy }), {
+        route: ROUTE,
+        responseMode: 'json',
+        allowedHostnames: env.ALLOWED_HOSTNAMES ? env.ALLOWED_HOSTNAMES.split(',') : undefined,
+      })(request, env, ctx);
+    } finally {
+      client.close();
+    }
   },
 };
