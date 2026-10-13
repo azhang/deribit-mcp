@@ -1,6 +1,6 @@
 name: v2 (MCP server + skill)
 # Deribit spec drift is checked weekly in azhang/deribit-client-js; bump the pinned
-# commit in packages/mcp/package.json, then run `npm run classify` and `npm run build:skill`.
+# release tag in packages/mcp/package.json, then run `npm run classify` and `npm run build:skill`.
 
 on:
   pull_request:
