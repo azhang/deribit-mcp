@@ -1,6 +1,6 @@
 - Never add attribution to commits or PRs: no `Co-Authored-By` trailers, no `Claude-Session` lines, no "Generated with Claude Code" text.
 - Deribit API source of truth: the published specs at https://docs.deribit.com/specifications/deribit_openapi.json and `deribit_asyncapi.json`, plus the changelog at https://docs.deribit.com/changelogs/jsonrpc. The Qdrant index is from an older snapshot.
-- The Deribit client lives in https://github.com/azhang/deribit-client-js and is generated from those specs. `packages/mcp` pins it to a commit. After bumping it, run `npm run classify` and `npm run build:skill` in `packages/mcp`.
+- The Deribit client lives in https://github.com/azhang/deribit-client-js and is generated from those specs. `packages/mcp` pins it to a release tag (`#0.1.0`). After bumping it, run `npm run classify` and `npm run build:skill` in `packages/mcp`.
 - v2 (`packages/mcp`, `skills/deribit`) is the active codebase; design in `docs/design/v2.md`. v1 (repo root `src/`) is frozen: don't change it.
 - v2 has two modes:
   - **Hosted** (Cloudflare Worker): public data only; a server key is used only for rate limits.

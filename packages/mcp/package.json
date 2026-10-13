@@ -21,7 +21,7 @@
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
     "agents": "0.28.0",
-    "deribit-client-js": "github:azhang/deribit-client-js#02f87eced413bac005f740b30e414a7be6d0fc1f",
+    "deribit-client-js": "github:azhang/deribit-client-js#0.1.0",
     "undici": "^8.11.2",
     "zod": "^4.6.7"
   },
