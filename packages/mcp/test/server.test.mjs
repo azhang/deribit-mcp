@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { stubDeribit, connect, body, parseTable } from './helpers.mjs';
 import { toCsv } from '../src/format.js';
+import { _internal as surface } from '../src/tools/surface.js';
 import { classifyAll } from '../src/classify.js';
 
 // ---- Tool surface ----
@@ -12,7 +13,7 @@ test('hosted exposes only read tools, each titled and annotated read-only', asyn
   const { tools } = await mcp.listTools();
   assert.deepEqual(tools.map((t) => t.name).sort(), [
     'deribit_call', 'deribit_describe', 'deribit_search', 'funding', 'instruments',
-    'market_overview', 'options_chain', 'order_books', 'tickers', 'volatility',
+    'market_overview', 'options_chain', 'order_books', 'tickers', 'vol_surface', 'volatility',
   ]);
   for (const t of tools) {
     assert.ok(t.title, `${t.name} has a title`);
@@ -200,7 +201,7 @@ test('both protocol eras see the same tools over HTTP', async () => {
   for (const era of ['2026-07-28', 'legacy']) {
     const mcp = await connect({ mode: 'hosted', deribit: stubDeribit().client, era });
     const { tools } = await mcp.listTools();
-    assert.equal(tools.length, 10, era);
+    assert.equal(tools.length, 11, era);
     await mcp.close();
   }
 });
@@ -241,5 +242,49 @@ test('volatility pages through DVOL and compares implied vs realised over their 
   assert.equal(r.overlap.dvol_mean, 50); // only the 2 candles inside realised coverage
   assert.equal(r.overlap.realised_mean, 42);
   assert.equal(r.overlap.spread, 8);
+  await mcp.close();
+});
+
+// ---- vol_surface ----
+
+test('surface maths: put-call parity forward and Black-76 deltas', () => {
+  const { impliedForward, forwardDelta, parseOption } = surface;
+  // Inverse: C - P = (F - K) / F. With F = 100000, K = 95000: C - P = 0.05
+  const inverse = [{ strike: 95000, type: 'call', mark_price: 0.08 }, { strike: 95000, type: 'put', mark_price: 0.03 }];
+  assert.ok(Math.abs(impliedForward(inverse, true, 99000) - 100000) < 1e-6);
+  // Linear: C - P = F - K
+  const linear = [{ strike: 100, type: 'call', mark_price: 7 }, { strike: 100, type: 'put', mark_price: 2 }];
+  assert.equal(impliedForward(linear, false, 104), 105);
+  // ATM-forward call delta ~ 0.5 + small vol term; put = call - 1
+  const c = forwardDelta('call', 100, 100, 0.5, 0.25);
+  assert.ok(c > 0.5 && c < 0.56);
+  assert.ok(Math.abs(forwardDelta('put', 100, 100, 0.5, 0.25) - (c - 1)) < 1e-12);
+  assert.deepEqual(parseOption('XRP_USDC-14OCT26-2d4-P'), { base: 'XRP', expiry: '14OCT26', strike: 2.4, type: 'put' });
+});
+
+test('vol_surface builds a term structure from one markprice snapshot', async () => {
+  // Synthetic smile for one expiry ~30 days out: IV higher on the put wing.
+  const d = new Date(Date.now() + 30 * 86_400_000);
+  const label = `${d.getUTCDate()}${['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][d.getUTCMonth()]}${String(d.getUTCFullYear()).slice(2)}`;
+  const marks = [];
+  for (const k of [80000, 90000, 100000, 110000, 120000]) {
+    const iv = 0.5 + (100000 - k) / 400000; // 0.55 at 80k ... 0.45 at 120k
+    marks.push({ instrument_name: `BTC-${label}-${k}-C`, iv, mark_price: Math.max(0.0005, (100000 - k) / 100000 + 0.04) });
+    marks.push({ instrument_name: `BTC-${label}-${k}-P`, iv, mark_price: Math.max(0.0005, (k - 100000) / 100000 + 0.04) });
+  }
+  const { client, calls } = stubDeribit({
+    routes: { 'public/get_index_price': () => ({ index_price: 99900 }) },
+    channels: { 'markprice.options.btc_usd': marks },
+  });
+  const mcp = await connect({ mode: 'hosted', deribit: client });
+  const { meta, rows } = parseTable(await mcp.callTool({ name: 'vol_surface', arguments: { currency: 'BTC' } }));
+  assert.equal(meta.index_name, 'btc_usd');
+  assert.equal(rows.length, 1);
+  const [row] = rows;
+  assert.equal(row.expiry, label);
+  assert.ok(Math.abs(row.forward - 100000) < 1, `forward ${row.forward}`); // C - P = 0 at 100k
+  assert.ok(Math.abs(row.atm_iv - 50) < 0.01, `atm ${row.atm_iv}`);
+  assert.ok(row.rr25 < 0, 'put skew gives a negative risk reversal');
+  assert.equal(calls.filter((c) => c.ws && c.method === 'public/subscribe').length, 1, 'one subscription for the whole surface');
   await mcp.close();
 });
