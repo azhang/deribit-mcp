@@ -338,7 +338,7 @@ Get current open positions across all instruments. Requires authentication.
 
 **Parameters:**
 - `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
-- `kind` (optional): Instrument kind ("future", "option", "spot")
+- `kind` (optional): Instrument kind ("future", "option", "future_combo", "option_combo")
 
 **Example:**
 ```json
@@ -353,8 +353,8 @@ Get all active orders. Requires authentication.
 
 **Parameters:**
 - `currency` (optional): Filter by currency (e.g., "BTC", "ETH")
-- `kind` (optional): Filter by instrument kind ("future", "option", "spot")
-- `type` (optional): Filter by order type ("limit", "market", "stop_limit", "stop_market")
+- `kind` (optional): Filter by instrument kind ("future", "option", "spot", "future_combo", "option_combo")
+- `type` (optional): Filter by order type ("all", "limit", "trigger_all", "stop_all", "stop_limit", "stop_market", "take_all", "take_limit", "take_market", "trailing_all", "trailing_stop")
 
 **Example:**
 ```json
@@ -389,7 +389,7 @@ Get your trade history. Requires authentication.
 - `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
 - `kind` (optional): Instrument kind ("future", "option", "spot")
 - `count` (optional): Number of results (default: 10)
-- `includeOld` (optional): Include old trades (default: false)
+- `historical` (optional): false (default) returns recent trades from the last 24h; true returns historical trade records
 
 **Example:**
 ```json
@@ -417,7 +417,12 @@ List all subaccounts. Requires authentication.
 
 Use this tool to quickly exit all positions in emergency situations.
 
-**Parameters:** None (cancels ALL orders)
+**Parameters:**
+- `currency` (optional): Currency filter. Without it, ALL orders are cancelled.
+- `kind` (optional, requires `currency`): Instrument kind ("future", "option", "spot", "future_combo", "option_combo", "combo", "any")
+- `type` (optional, requires `currency`): Order type ("all", "limit", "trigger_all", "stop", "take", "trailing_stop")
+
+Passing `kind` or `type` without `currency` returns an error and cancels nothing.
 
 ### getOptionsChain ⚡
 
@@ -524,7 +529,7 @@ Get recent trade history for an instrument.
 **Parameters:**
 - `instrumentName` (required): Instrument name
 - `count` (optional): Number of trades (default: 10, max: 1000)
-- `includeOld` (optional): Include old trades (default: false)
+- `sorting` (optional): Sort direction by trade ID ("asc", "desc", "default")
 
 **Example:**
 ```json
@@ -705,8 +710,8 @@ Get historical funding rate data for analyzing funding rate trends over time.
 
 **Parameters:**
 - `instrumentName` (required): The perpetual instrument name (e.g., "BTC-PERPETUAL")
-- `startTimestamp` (optional): Start time in UNIX milliseconds
-- `endTimestamp` (optional): End time in UNIX milliseconds
+- `startTimestamp` (required): Start time in UNIX milliseconds
+- `endTimestamp` (required): End time in UNIX milliseconds
 
 **Example:**
 ```json
