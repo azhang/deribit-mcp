@@ -790,6 +790,18 @@ Get TradingView-compatible OHLCV (candlestick) chart data.
 
 **Output:** JSON object with OHLCV data arrays (open, high, low, close, volume, timestamps).
 
+## Companion Skill
+
+[`skills/deribit/`](skills/deribit/SKILL.md) is an Agent Skill that teaches the model how to use these tools well. It covers:
+- which tool fits which question
+- Deribit's instrument naming and units: inverse contracts, coin-priced options and `d` decimal strikes
+- safety rules for the account tools
+- recipes for vol smiles, term structure, funding and basis, greeks aggregation, and DVOL vs realised vol
+
+Install it alongside the MCP server. In Claude Code, copy or symlink `skills/deribit` into `~/.claude/skills/` or into a project's `.claude/skills/`. Keep it in sync with the server version, because it describes the current tool parameters.
+
+The skill holds only general Deribit knowledge. Keep your own strategies, limits and account details in a separate private skill that builds on this one.
+
 ## Development
 
 ```bash
