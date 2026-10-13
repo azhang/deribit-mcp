@@ -1,6 +1,6 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { createMcpHandler } from 'agents/mcp/server';
-import { Deribit } from '@deribit-mcp/client';
+import { Deribit } from 'deribit-client-js';
 import { createServer } from '../src/server.js';
 import { createPolicy } from '../src/classify.js';
 

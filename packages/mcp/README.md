@@ -1,6 +1,6 @@
 # Deribit MCP server v2
 
-An MCP server for Deribit built on [`@deribit-mcp/client`](../deribit-client). The client is generated from Deribit's published OpenAPI and AsyncAPI specs, so every one of the 186 API methods is reachable and parameters are checked against the spec. Design: [`docs/design/v2.md`](../../docs/design/v2.md).
+An MCP server for Deribit built on [`deribit-client-js`](https://github.com/azhang/deribit-client-js). The client is generated from Deribit's published OpenAPI and AsyncAPI specs, so every one of the 186 API methods is reachable and parameters are checked against the spec. Design: [`docs/design/v2.md`](../../docs/design/v2.md).
 
 It serves MCP spec 2026-07-28 and earlier clients, from a single server factory.
 

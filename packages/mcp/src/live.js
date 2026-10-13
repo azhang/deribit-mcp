@@ -11,7 +11,7 @@
  * Same `snapshot(channels, { timeoutMs })` shape as the client, so tools don't care
  * which one they get.
  */
-import { DeribitTransportError } from '@deribit-mcp/client';
+import { DeribitTransportError } from 'deribit-client-js';
 
 function mergeChange(prev, change) {
   const out = { ...prev };
@@ -26,7 +26,7 @@ function mergeChange(prev, change) {
 
 export class LiveMarket {
   /**
-   * @param {import('@deribit-mcp/client').Deribit} client
+   * @param {import('deribit-client-js').Deribit} client
    * @param {{ idleTtlMs?: number, maxChannels?: number, sweepMs?: number, now?: () => number }} [options]
    */
   constructor(client, { idleTtlMs = 15 * 60_000, maxChannels = 3000, sweepMs = 30_000, now = Date.now } = {}) {
