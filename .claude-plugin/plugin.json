@@ -1,7 +1,7 @@
 {
   "name": "deribit",
   "displayName": "Deribit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Deribit options, vol surfaces, futures, funding and DVOL: the deribit skill and the hosted MCP server (public data).",
   "author": { "name": "Allie", "url": "https://github.com/azhang" },
   "homepage": "https://github.com/azhang/deribit-mcp",
