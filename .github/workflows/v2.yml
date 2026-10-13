@@ -1,6 +1,6 @@
 name: v2 (MCP server + skill)
 # Deribit spec drift is checked weekly in azhang/deribit-client-js; bump the pinned
-# release tag in packages/mcp/package.json, then run `npm run classify` and `npm run build:skill`.
+# release tag in packages/mcp/package.json, then run `npm install`, `npm run classify` and `npm run build:skill`.
 
 on:
   pull_request:
@@ -22,7 +22,7 @@ jobs:
       - name: Server — install, test, build
         working-directory: packages/mcp
         run: |
-          npm install --no-package-lock
+          npm ci
           npm test
           npm run build
           npm run build:skill -- --check  # skills/deribit/scripts/lib must match the client and analytics

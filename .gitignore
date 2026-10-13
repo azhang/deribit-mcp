@@ -12,6 +12,7 @@ wheels/
 # Node.js
 node_modules/
 package-lock.json
+!packages/mcp/package-lock.json
 *.log
 
 # Cloudflare/Wrangler

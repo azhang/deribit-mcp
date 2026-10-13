@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
  * Bundle the local stdio server and its dependencies into one file that runs with plain
- * `node` (22+) and nothing installed: packages/mcp/bundle/deribit-mcp.mjs.
+ * `node` (22+) and nothing installed: packages/mcp/bundle/deribit-mcp.mjs, plus a package.json
+ * that makes bundle/ an npm package with no dependencies (`npm pack ./bundle` for a release).
  *
  *   npm run build:stdio
  *
  * The output is not checked in: dependencies use caret ranges, so it is rebuilt, not diffed.
  */
 import { build } from 'esbuild';
+import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -32,6 +34,15 @@ export async function buildStdio(outfile = defaultOutfile) {
         "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
     },
   });
+  // npx runs the bin whose name matches the package's.
+  const { version, description, engines } = JSON.parse(await readFile(path.resolve(here, '..', 'package.json'), 'utf8'));
+  const pkg = {
+    name: 'deribit-mcp-server', version, description, type: 'module', engines,
+    bin: { 'deribit-mcp-server': path.basename(outfile) },
+    files: [path.basename(outfile)],
+    repository: 'github:azhang/deribit-mcp',
+  };
+  await writeFile(path.join(path.dirname(outfile), 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`);
   return outfile;
 }
 

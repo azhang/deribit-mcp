@@ -1,0 +1,37 @@
+name: v2 stdio server release
+# Push a tag `mcp-v<version>` matching packages/mcp/package.json. CI tests, builds the
+# single-file bundle, and attaches it as an npm tarball to a GitHub Release, so clients run
+#   npx -y https://github.com/azhang/deribit-mcp/releases/download/mcp-v<version>/deribit-mcp-server-<version>.tgz
+
+on:
+  push:
+    tags: ['mcp-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Test and build
+        working-directory: packages/mcp
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "mcp-v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match packages/mcp version $version"; exit 1
+          fi
+          npm ci
+          npm test
+          npm run build:stdio
+          npm pack ./bundle
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" packages/mcp/deribit-mcp-server-*.tgz --title "$GITHUB_REF_NAME" --generate-notes
