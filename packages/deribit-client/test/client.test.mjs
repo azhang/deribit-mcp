@@ -96,6 +96,12 @@ test('private calls need credentials and use Basic auth over HTTP', async () => 
   assert.equal(calls[0].headers.Authorization, `Basic ${btoa('id:secret')}`);
 });
 
+test('public calls are authenticated too when credentials are set (per-user rate limits)', async () => {
+  const { fetch, calls } = stubFetch(() => ({ json: { result: {} } }));
+  await new Deribit({ fetch, clientId: 'id', clientSecret: 'secret' }).public.get_time();
+  assert.equal(calls[0].headers.Authorization, `Basic ${btoa('id:secret')}`);
+});
+
 test('network failures become DeribitTransportError', async () => {
   const d = new Deribit({ fetch: async () => { throw new Error('ECONNRESET'); } });
   await assert.rejects(d.public.get_time(), DeribitTransportError);

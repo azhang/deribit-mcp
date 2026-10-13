@@ -81,7 +81,9 @@ export class Deribit {
 
   async #httpCall(method, params) {
     const headers = { 'Content-Type': 'application/json' };
-    if (this.credentials && method.startsWith('private/')) {
+    // Authenticate every call when credentials are set: Deribit's rate limits are
+    // per user when authenticated, rather than per IP, so this raises public limits too.
+    if (this.credentials) {
       headers.Authorization = `Basic ${btoa(`${this.credentials.clientId}:${this.credentials.clientSecret}`)}`;
     }
     let response;

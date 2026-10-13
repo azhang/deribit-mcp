@@ -18,7 +18,8 @@ const d = new Deribit();                                   // production, public
 const t = await d.public.ticker({ instrument_name: 'BTC-PERPETUAL' });
 const same = await d.call('public/ticker', { instrument_name: 'BTC-PERPETUAL' });
 
-// Private methods: HTTP Basic auth, or public/auth on the WebSocket
+// With credentials every call is authenticated (HTTP Basic auth, or public/auth on the
+// WebSocket): private methods work, and public calls get per-user rather than per-IP rate limits
 const acct = new Deribit({ clientId, clientSecret, env: 'test' });
 await acct.private.get_positions({ currency: 'BTC' });
 
