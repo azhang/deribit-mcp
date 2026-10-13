@@ -22,7 +22,7 @@ Each recipe lists the tool calls in order and the conversions that matter. Compu
    - **25-delta butterfly** = (IV(25Δ call) + IV(25Δ put)) / 2 − IV(ATM).
 6. Flag strikes with no bid or a wide `bid_iv`/`ask_iv` spread. `mark_iv` there is model-driven, not traded.
 
-For USDC-settled chains, filter rows by the `instrument_name` prefix so you only use one underlying.
+For USDC-settled chains, pass `underlying` (e.g. `"SOL"`) along with `currency: "USDC"`.
 
 ## 2. Term structure across expiries
 

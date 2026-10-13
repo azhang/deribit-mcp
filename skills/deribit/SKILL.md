@@ -37,7 +37,7 @@ All timestamps are Unix **milliseconds**. Compute them from the current time rat
 - Options: `BTC-27MAR26-100000-C`, `ETH_USDC-9OCT26-4000-P`. Fractional strikes use `d` as the decimal point: `AVAX_USDC-14OCT26-9d6-C` is strike 9.6.
 - The part before the first `-` tells you the settlement: `BTC`/`ETH` options are inverse and settle in the coin; anything with `_USDC` is linear and settles in USDC.
 
-For `get_options_chain`, `currency` is the **settlement** currency: `BTC` or `ETH` for the inverse books, `USDC` for every linear book (SOL, XRP, AVAX, and the linear BTC/ETH books). A USDC chain for an expiry can therefore contain several underlyings — check the `instrument_name` prefix before treating rows as one smile.
+For `get_options_chain`, `currency` is the **settlement** currency: `BTC` or `ETH` for the inverse books, `USDC` for every linear book (SOL, XRP, AVAX, and the linear BTC/ETH books). One USDC expiry lists several underlyings, so pass `underlying` (e.g. `"SOL"`) with `currency: "USDC"`. Without it the tool returns an error that names the choices.
 
 Read `references/instruments.md` for contract sizes, units and settlement details when you need to convert between USD and coin amounts or compute notional.
 
