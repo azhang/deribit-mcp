@@ -813,7 +813,7 @@ https://docs.deribit.com/
 
 ## Architecture
 
-- **Runtime**: Node.js 18+ (local), Cloudflare Workers (production)
+- **Runtime**: Node.js 22+ (local), Cloudflare Workers (production)
 - **Transport**:
   - stdio (local with any MCP client)
   - HTTP (streamable HTTP transport for remote MCP)
