@@ -17,3 +17,6 @@ package-lock.json
 # Cloudflare/Wrangler
 .wrangler/
 .dev.vars
+
+# v2 stdio bundle (npm run build:stdio)
+packages/mcp/bundle/
