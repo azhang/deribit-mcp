@@ -57,6 +57,9 @@ export default {
         route: ROUTE,
         responseMode: 'json',
         allowedHostnames: env.ALLOWED_HOSTNAMES ? env.ALLOWED_HOSTNAMES.split(',') : undefined,
+        // Public, read-only and cookie-less, so there's nothing for an Origin check to protect.
+        // The default (localhost only) rejects web clients such as claude.ai connectors.
+        allowedOriginHostnames: '*',
       })(request, env, ctx);
     } catch (error) {
       client.close();
