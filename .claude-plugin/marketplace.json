@@ -5,7 +5,7 @@
   "plugins": [
     {
       "name": "deribit",
-      "source": "./",
+      "source": "./plugins/deribit",
       "description": "Deribit options, vol surfaces, futures, funding and DVOL: the deribit skill and the hosted MCP server (public data)."
     }
   ]

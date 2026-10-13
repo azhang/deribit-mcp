@@ -40,7 +40,7 @@ To run it somewhere without this repo and its `node_modules`, build one self-con
 npm install && npm run build:stdio   # writes bundle/deribit-mcp.mjs (about 1.7 MB, not checked in)
 ```
 
-It runs with plain `node bundle/deribit-mcp.mjs` on Node 22+ and takes the same environment variables. Pushing a tag `mcp-v<version>` (matching `package.json`) publishes it as a GitHub Release, so any client can start it with `npx -y https://github.com/azhang/deribit-mcp/releases/download/mcp-v<version>/deribit-mcp-server-<version>.tgz`. Setup for Hermes: [`skills/README.md`](../../skills/README.md#hermes).
+It runs with plain `node bundle/deribit-mcp.mjs` on Node 22+ and takes the same environment variables. Pushing a tag `mcp-v<version>` (matching `package.json`) publishes it as a GitHub Release, so any client can start it with `npx -y https://github.com/azhang/deribit-mcp/releases/download/mcp-v<version>/deribit-mcp-server-<version>.tgz`. Setup for Hermes: [`plugins/README.md`](../../plugins/README.md#hermes).
 
 The local server can do three things the hosted one can't:
 
