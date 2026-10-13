@@ -16,7 +16,8 @@
     "classify": "node scripts/classify.mjs",
     "test": "node --test \"test/*.test.mjs\"",
     "smoke:workerd": "node test/workerd-smoke.mjs",
-    "build:skill": "node scripts/build-skill.mjs"
+    "build:skill": "node scripts/build-skill.mjs",
+    "build:stdio": "node scripts/build-stdio.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",

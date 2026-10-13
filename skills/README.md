@@ -12,8 +12,77 @@ To install only the skill, copy or symlink the folder:
 |---|---|
 | Claude Code | `~/.claude/skills/deribit` (all projects) or `.claude/skills/deribit` (one project) |
 | Codex | `~/.codex/skills/deribit` or `.codex/skills/deribit` |
-| Hermes | Add this repo as a skill source, or copy the folder into Hermes's skills directory |
+| Hermes | See [Hermes](#hermes) below |
 
 The scripts need Node 22+ (or Deno or Bun) and nothing else. `scripts/lib/deribit.mjs` is a generated bundle of [`deribit-client-js`](https://github.com/azhang/deribit-client-js) and `packages/mcp/src/analytics.js`; rebuild it with `npm run build:skill` in `packages/mcp`. CI fails if it's stale.
 
 Keep personal strategies, risk limits and account details in a separate private skill that builds on this one, outside this repo.
+
+## Hermes
+
+[Hermes Agent](https://hermes-agent.nousresearch.com/docs/) has no package that carries a skill and an MCP server together, so set up the parts separately. Each Hermes profile has its own home directory, skills and `config.yaml`; run `hermes` commands with `-p <profile>` for a profile other than the default, and add Deribit only to the profiles that should have it.
+
+### 1. The skill
+
+Copy the whole `skills/deribit/` folder into the profile's skills directory under its `HERMES_HOME` (`~/.hermes` for the default profile), keeping `scripts/` and `references/`:
+
+```bash
+mkdir -p "$HERMES_HOME/skills/finance"
+cp -R skills/deribit "$HERMES_HOME/skills/finance/deribit"
+```
+
+Or point the profile at a directory that holds it, in that profile's `config.yaml`:
+
+```yaml
+skills:
+  external_dirs:
+    - /path/to/deribit-mcp/skills
+```
+
+`hermes skills install azhang/deribit-mcp/skills/deribit` should also work (untested): Hermes copies only the files `SKILL.md` mentions, and a private repo needs `GITHUB_TOKEN`.
+
+The scripts need Node 22+ on the machine Hermes runs commands on. They read public data only.
+
+### 2. The MCP server
+
+Pick one entry under `mcp_servers` in the profile's `config.yaml`.
+
+**Market data only** (the hosted server, nothing to install):
+
+```yaml
+mcp_servers:
+  deribit:
+    url: https://mcp.x.zip/deribit/v2/mcp
+```
+
+**Your account** (the local server, with your own key). Build the single file with `npm run build:stdio` in `packages/mcp` and copy `bundle/deribit-mcp.mjs` to the Hermes host. Put the key in the profile's `.env`:
+
+```bash
+DERIBIT_CLIENT_ID=…
+DERIBIT_CLIENT_SECRET=…
+```
+
+Then:
+
+```yaml
+mcp_servers:
+  deribit:
+    command: node
+    args: [/path/to/deribit-mcp.mjs]
+    env:
+      DERIBIT_CLIENT_ID: "${DERIBIT_CLIENT_ID}"
+      DERIBIT_CLIENT_SECRET: "${DERIBIT_CLIENT_SECRET}"
+      DERIBIT_ENV: production
+      DERIBIT_OUTPUT_DIR: /path/to/deribit-data   # where save_to writes CSVs; use an absolute path
+    tools:
+      exclude: [cancel_orders, deribit_call_write]
+```
+
+- Hermes passes a stdio server only the variables in its `env` block (plus `PATH`, `HOME` and a few other basics), so list any other setting you want there too, such as `DERIBIT_LIVE_TTL` or `HTTPS_PROXY`. `${VAR}` reads from the profile's `.env`.
+- Without `DERIBIT_OUTPUT_DIR`, CSVs go to `./deribit-data` under whatever directory Hermes starts the server in.
+- `tools.exclude` keeps the two write tools away from the model. For read-only access, also give the Deribit API key only read scopes, so Deribit itself refuses anything else.
+- Write tools ask for confirmation with an MCP elicitation form, which Hermes shows through its approval prompt. This hasn't been tested with Hermes yet, so try it on testnet (`DERIBIT_ENV: test`, with a test.deribit.com key) before removing the `exclude`.
+
+### 3. Check it
+
+Run `hermes mcp test deribit`, then `/reload-mcp` in a session (a running gateway picks up `config.yaml` changes on its own within about a minute). With Tool Search on, Hermes's default, the Deribit tools sit behind `tool_search` until the model asks for them; there's nothing to configure.

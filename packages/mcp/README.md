@@ -34,6 +34,14 @@ Claude Code, or any client config that runs a command:
 
 Without a key it serves the same public tools as the hosted server. Logs go to stderr; stdout carries only MCP messages.
 
+To run it somewhere without this repo and its `node_modules`, build one self-contained file and copy that instead:
+
+```bash
+npm install && npm run build:stdio   # writes bundle/deribit-mcp.mjs (about 1.7 MB, not checked in)
+```
+
+It runs with plain `node bundle/deribit-mcp.mjs` on Node 22+ and takes the same environment variables. Setup for Hermes: [`skills/README.md`](../../skills/README.md#hermes).
+
 The local server can do three things the hosted one can't:
 
 | Variable | Default | Effect |
