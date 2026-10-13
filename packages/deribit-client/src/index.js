@@ -36,7 +36,9 @@ export class Deribit {
     this.transport = transport;
     this.validate = validate;
     this.timeoutMs = timeoutMs;
-    this.fetch = fetchImpl;
+    // Call fetch on the global object: Workers throws "Illegal invocation" when the
+    // built-in fetch runs with `this` bound to another object (e.g. this client).
+    this.fetch = (...args) => fetchImpl.call(globalThis, ...args);
     this.nextId = 1;
     this.ws = new WsTransport({
       url: this.wsUrl,
