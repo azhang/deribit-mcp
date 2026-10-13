@@ -33,5 +33,13 @@ await call(a, 'vol_surface', 'vol_surface', { currency: 'BTC' });
 const legacy = await connect({ legacy: true });
 await call(legacy, 'legacy tickers', 'tickers', tickers);
 await call(legacy, 'legacy vol_surface', 'vol_surface', { currency: 'ETH', view: 'smile' });
+// Web clients (claude.ai connectors) send an Origin header.
+const origin = await fetch(url, {
+  method: 'POST',
+  headers: { origin: 'https://claude.ai', 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'smoke', version: '1' } } }),
+});
+if (!origin.ok) failed += 1;
+console.log(`${origin.ok ? 'ok  ' : 'FAIL'} ${'claude.ai origin'.padEnd(18)} HTTP ${origin.status}`);
 console.log(failed ? `${failed} failed` : 'all ok');
 process.exit(failed ? 1 : 0);
