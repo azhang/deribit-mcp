@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { stubDeribit, connect, body, parseTable } from './helpers.mjs';
 import { toCsv } from '../src/format.js';
-import { _internal as surface } from '../src/tools/surface.js';
+import * as surface from '../src/analytics.js';
 import { classifyAll } from '../src/classify.js';
 
 // ---- Tool surface ----
