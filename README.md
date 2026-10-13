@@ -427,10 +427,11 @@ Get complete options chain for a specific expiry with real-time greeks, prices, 
 
 **Parameters:**
 - `currency` (required): **Settlement currency** for the options. Valid values: BTC, ETH, USDC, USDT, EURR
-  - Use `"USDC"` for USDC-settled options (ETH_USDC, SOL_USDC, AVAX_USDC, etc.)
-  - Use `"BTC"` for BTC-settled options (ETH, SOL, etc.)
-  - Use `"ETH"` for ETH-settled options
+  - Use `"USDC"` for USDC-settled options (BTC_USDC, ETH_USDC, SOL_USDC, AVAX_USDC, etc.)
+  - Use `"BTC"` for BTC-settled options (BTC-...)
+  - Use `"ETH"` for ETH-settled options (ETH-...)
 - `expiry` (required): Expiry date in format "9OCT25", "27MAR25", or "DDMMMYY"
+- `underlying` (optional): Underlying coin, e.g. `"SOL"`. Required for `"USDC"`, where one expiry lists several underlyings; without it the tool returns an error naming them.
 - `minStrike` (optional): Minimum strike price filter
 - `maxStrike` (optional): Maximum strike price filter
 
@@ -440,6 +441,7 @@ For USDC-settled ETH options (ETH_USDC):
 ```json
 {
   "currency": "USDC",
+  "underlying": "ETH",
   "expiry": "31OCT25",
   "minStrike": 4000,
   "maxStrike": 5000
@@ -625,6 +627,7 @@ Get options chains for multiple expiries using a single WebSocket connection. Ex
 **Parameters:**
 - `currency` (required): Currency symbol (e.g., "BTC", "ETH", "USDC")
 - `expiries` (required): Array of expiry dates in format "9OCT25" or "DDMMMYY"
+- `underlying` (optional): Underlying coin; required for `"USDC"` (see getOptionsChain)
 - `minStrike` (optional): Minimum strike price filter
 - `maxStrike` (optional): Maximum strike price filter
 

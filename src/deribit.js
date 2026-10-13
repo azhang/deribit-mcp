@@ -7,7 +7,7 @@
  */
 
 import { WebSocketClient } from './ws-client.js';
-import { filterInstrumentsByExpiry, buildOptionsChainCSV } from './options.js';
+import { filterInstrumentsByExpiry, assertSingleUnderlying, buildOptionsChainCSV } from './options.js';
 import { encode } from '@toon-format/toon';
 
 export class DeribitClient {
@@ -390,9 +390,10 @@ export class DeribitClient {
    * @param {Array<string>} expiries - Array of expiry dates (e.g., ["9OCT25", "16OCT25"])
    * @param {number} [minStrike] - Optional minimum strike filter
    * @param {number} [maxStrike] - Optional maximum strike filter
+   * @param {string} [underlying] - Underlying coin; required when the settlement currency covers several (e.g. USDC)
    * @returns {Promise<Object>} Dictionary mapping expiry to CSV string
    */
-  async getOptionsChains(currency, expiries, minStrike = null, maxStrike = null) {
+  async getOptionsChains(currency, expiries, minStrike = null, maxStrike = null, underlying = null) {
     // Step 1: Get all option instruments for this currency (HTTP)
     const instruments = await this._getInstrumentsRaw(currency, 'option', false);
 
@@ -401,15 +402,16 @@ export class DeribitClient {
     const expiryToInstruments = {};
 
     for (const expiry of expiries) {
-      const instrumentNames = filterInstrumentsByExpiry(instruments, expiry);
+      const instrumentNames = filterInstrumentsByExpiry(instruments, expiry, underlying);
       expiryToInstruments[expiry] = instrumentNames;
       allInstrumentNames.push(...instrumentNames);
     }
+    assertSingleUnderlying(allInstrumentNames, currency);
 
     if (allInstrumentNames.length === 0) {
       const results = {};
       for (const expiry of expiries) {
-        results[expiry] = `# No instruments found for ${currency} expiry ${expiry}\n`;
+        results[expiry] = `# No instruments found for ${currency}${underlying ? ` ${underlying}` : ''} expiry ${expiry}\n`;
       }
       return results;
     }
@@ -519,18 +521,20 @@ export class DeribitClient {
    * @param {string} expiry - Expiry date in format "9OCT25"
    * @param {number} [minStrike] - Optional minimum strike filter
    * @param {number} [maxStrike] - Optional maximum strike filter
+   * @param {string} [underlying] - Underlying coin; required when the settlement currency covers several (e.g. USDC)
    * @returns {Promise<string>} CSV formatted string
    */
-  async getOptionsChain(currency, expiry, minStrike = null, maxStrike = null) {
+  async getOptionsChain(currency, expiry, minStrike = null, maxStrike = null, underlying = null) {
     // Step 1: Get all option instruments for this currency (HTTP)
     const instruments = await this._getInstrumentsRaw(currency, 'option', false);
 
     // Step 2: Filter instruments by expiry date
-    const instrumentNames = filterInstrumentsByExpiry(instruments, expiry);
+    const instrumentNames = filterInstrumentsByExpiry(instruments, expiry, underlying);
 
     if (instrumentNames.length === 0) {
-      return `# No instruments found for ${currency} expiry ${expiry}\n`;
+      return `# No instruments found for ${currency}${underlying ? ` ${underlying}` : ''} expiry ${expiry}\n`;
     }
+    assertSingleUnderlying(instrumentNames, currency);
 
     // Step 3: Connect WebSocket if not already connected
     if (this.wsClient === null) {
