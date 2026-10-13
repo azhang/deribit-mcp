@@ -1,27 +1,42 @@
 import { z } from 'zod';
 import { search, methods, channels, validateParams } from '@deribit-mcp/client';
-import { ok, fail, limitList, safe } from '../format.js';
+import { ok, fail, limitList, safe, table, isTable } from '../format.js';
 import { requireConfirmation } from '../confirm.js';
 
 const MAX_TEXT = 60_000;
 
-/** Bound any API result: cap top-level arrays, and refuse anything still too large. */
-function bounded(result, limit) {
-  if (Array.isArray(result)) {
-    const { items, total, truncated } = limitList(result, limit, 'Pass a larger limit or narrower params.');
-    result = truncated ? { total, truncated, items } : items;
-  } else if (result && typeof result === 'object') {
-    for (const [key, value] of Object.entries(result)) {
-      if (Array.isArray(value) && value.length > limit) {
-        result = { ...result, [key]: value.slice(0, limit), [`${key}_truncated`]: `Showing ${limit} of ${value.length}.` };
-      }
+/**
+ * Bound any API result and pick a shape: a list of records (or an object whose main
+ * field is one) becomes CSV with the rest as metadata; anything else stays JSON.
+ */
+export function shapeResult(result, limit, format = 'csv') {
+  let meta = {};
+  let key = 'items';
+  let rows = result;
+  if (!Array.isArray(result) && result && typeof result === 'object') {
+    // e.g. { trades: [...], has_more } or { data: [...], records_total }
+    const arrays = Object.entries(result).filter(([, v]) => Array.isArray(v)).sort((a, b) => b[1].length - a[1].length);
+    if (arrays.length) {
+      [key, rows] = arrays[0];
+      meta = Object.fromEntries(Object.entries(result).filter(([k]) => k !== key));
+    } else {
+      rows = null;
     }
   }
-  const text = JSON.stringify(result);
-  if (text.length > MAX_TEXT) {
-    return fail(`Result is ${text.length} characters, over the ${MAX_TEXT} limit. Narrow the params (e.g. kind, instrument, time range) or lower limit.`);
+  if (Array.isArray(rows)) {
+    const { items, total, truncated } = limitList(rows, limit, 'Pass a larger limit or narrower params.');
+    if (truncated) meta = { ...meta, total, truncated };
+    rows = items;
   }
-  return ok(result);
+
+  const out = Array.isArray(rows) && (isTable(rows) || rows.length === 0 || format === 'json')
+    ? table(meta, key, rows, format)
+    : ok(Array.isArray(rows) ? (Object.keys(meta).length ? { ...meta, [key]: rows } : rows) : result);
+  const size = out.content[0].text.length;
+  if (size > MAX_TEXT) {
+    return fail(`Result is ${size} characters, over the ${MAX_TEXT} limit. Narrow the params (e.g. kind, instrument, time range) or lower limit.`);
+  }
+  return out;
 }
 
 /**
@@ -74,18 +89,19 @@ export function registerGenericTools(server, client, policy) {
 
   server.registerTool('deribit_call', {
     title: 'Call Deribit API (read)',
-    description: `Call any allowed Deribit read method (${callable}) by name with params as in deribit_describe. Results are JSON; large lists are capped by limit.`,
+    description: `Call any allowed Deribit read method (${callable}) by name with params as in deribit_describe. Lists of records come back as CSV (a JSON metadata line, then the table); other results as JSON. Lists are capped by limit.`,
     inputSchema: z.object({
       method: z.string().describe("e.g. 'public/get_last_trades_by_currency'"),
       params: z.record(z.string(), z.unknown()).default({}),
       limit: z.number().int().min(1).max(1000).default(100).describe('Cap for list results.'),
+      format: z.enum(['csv', 'json']).default('csv').describe("Lists of records come back as CSV by default; 'json' keeps them as JSON."),
     }),
     annotations: { title: 'Call Deribit API (read)', readOnlyHint: true, openWorldHint: true },
-  }, safe(async ({ method, params, limit }) => {
+  }, safe(async ({ method, params, limit, format }) => {
     const cls = policy.classOf(method);
     if (cls === 'private_write') return fail(`${method} changes account state; use deribit_call_write.`);
     if (cls === 'blocked') return fail(`${method} is not available: ${policy.reason(method)}.`);
-    return bounded(await client.call(method, params), limit);
+    return shapeResult(await client.call(method, params), limit, format);
   }));
 
   if (!local) return;
@@ -109,6 +125,6 @@ export function registerGenericTools(server, client, policy) {
     validateParams(method, params); // reject bad params before asking the user to confirm them
     const gate = requireConfirmation(server, ctx, { summary: `${method} ${JSON.stringify(params)} on ${client.env}`, confirm });
     if (gate) return gate;
-    return bounded(await client.call(method, params), 100);
+    return shapeResult(await client.call(method, params), 100, 'json');
   }));
 }

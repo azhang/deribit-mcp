@@ -88,3 +88,22 @@ export function body(result) {
     return text;
   }
 }
+
+/** Parse a CSV tool result: optional JSON metadata line, blank line, then the CSV table. */
+export function parseTable(result) {
+  const text = result.content[0].text;
+  const [first, ...rest] = text.split('\n\n');
+  const meta = rest.length ? JSON.parse(first) : {};
+  const csv = rest.length ? rest.join('\n\n') : first;
+  const [header, ...lines] = csv.split('\n');
+  const columns = header.split(',');
+  const rows = lines.map((line) => {
+    const cells = line.match(/("([^"]|"")*"|[^,]*)(,|$)/g).slice(0, columns.length).map((c) => c.replace(/,$/, ''));
+    return Object.fromEntries(columns.map((c, i) => {
+      const raw = cells[i] ?? '';
+      const value = raw.startsWith('"') ? raw.slice(1, -1).replace(/""/g, '"') : raw;
+      return [c, value === '' ? undefined : Number.isNaN(Number(value)) ? value : Number(value)];
+    }));
+  });
+  return { meta, columns, rows };
+}

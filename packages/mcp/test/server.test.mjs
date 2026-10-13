@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { stubDeribit, connect, body } from './helpers.mjs';
+import { stubDeribit, connect, body, parseTable } from './helpers.mjs';
+import { toCsv } from '../src/format.js';
 import { classifyAll } from '../src/classify.js';
 
 // ---- Tool surface ----
@@ -62,11 +63,16 @@ test('options_chain refuses to mix underlyings and asks for one', async () => {
 test('options_chain defaults to the nearest expiry and returns live greeks', async () => {
   const { client } = stubDeribit({ routes: { 'public/get_instruments': () => instruments }, tickers });
   const mcp = await connect({ mode: 'hosted', deribit: client });
-  const r = body(await mcp.callTool({ name: 'options_chain', arguments: { currency: 'USDC', underlying: 'sol' } }));
-  assert.deepEqual(r.expiries, ['14OCT26']);
-  assert.equal(r.forward_by_expiry['14OCT26'], 151);
-  assert.deepEqual(r.units, { price: 'USDC', iv: 'percent' });
-  assert.deepEqual(r.options.map((o) => [o.strike, o.type, o.delta]), [[150, 'call', 0.52], [150, 'put', -0.48]]);
+  const { meta, rows } = parseTable(await mcp.callTool({ name: 'options_chain', arguments: { currency: 'USDC', underlying: 'sol' } }));
+  assert.deepEqual(meta.expiries, ['14OCT26']);
+  assert.equal(meta.forward_by_expiry['14OCT26'], 151);
+  assert.deepEqual(meta.units, { price: 'USDC', iv: 'percent' });
+  assert.equal(meta.rows, 2);
+  assert.deepEqual(rows.map((o) => [o.strike, o.type, o.delta]), [[150, 'call', 0.52], [150, 'put', -0.48]]);
+
+  // format: 'json' keeps the rows as JSON
+  const json = body(await mcp.callTool({ name: 'options_chain', arguments: { currency: 'USDC', underlying: 'sol', format: 'json' } }));
+  assert.equal(json.options.length, 2);
   await mcp.close();
 });
 
@@ -85,9 +91,10 @@ test('deribit_call runs public methods and caps long lists', async () => {
   const trades = Array.from({ length: 250 }, (_, i) => ({ trade_id: i }));
   const { client } = stubDeribit({ routes: { 'public/get_last_trades_by_currency': () => ({ trades, has_more: true }) } });
   const mcp = await connect({ mode: 'hosted', deribit: client });
-  const r = body(await mcp.callTool({ name: 'deribit_call', arguments: { method: 'public/get_last_trades_by_currency', params: { currency: 'BTC' }, limit: 50 } }));
-  assert.equal(r.trades.length, 50);
-  assert.match(r.trades_truncated, /Showing 50 of 250/);
+  const { meta, rows } = parseTable(await mcp.callTool({ name: 'deribit_call', arguments: { method: 'public/get_last_trades_by_currency', params: { currency: 'BTC' }, limit: 50 } }));
+  assert.equal(rows.length, 50);
+  assert.equal(meta.has_more, true);
+  assert.match(meta.truncated, /Showing 50 of 250/);
   await mcp.close();
 });
 
@@ -196,4 +203,17 @@ test('both protocol eras see the same tools over HTTP', async () => {
     assert.equal(tools.length, 10, era);
     await mcp.close();
   }
+});
+
+test('CSV quotes commas, quotes and nested values', () => {
+  const csv = toCsv([{ a: 'x,y', b: 'say "hi"', c: { d: 1 } }, { a: 1, e: null }]);
+  assert.equal(csv, 'a,b,c,e\n"x,y","say ""hi""","{""d"":1}",\n1,,,');
+});
+
+test('deribit_call keeps non-tabular results as JSON', async () => {
+  const { client } = stubDeribit({ routes: { 'public/get_index_price': () => ({ index_price: 1, estimated_delivery_price: 1 }) } });
+  const mcp = await connect({ mode: 'hosted', deribit: client });
+  const r = body(await mcp.callTool({ name: 'deribit_call', arguments: { method: 'public/get_index_price', params: { index_name: 'btc_usd' } } }));
+  assert.deepEqual(r, { index_price: 1, estimated_delivery_price: 1 });
+  await mcp.close();
 });

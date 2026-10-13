@@ -36,10 +36,12 @@ export function toolError(error) {
     return fail(`Invalid params for ${error.method}:\n- ${error.problems.join('\n- ')}\nUse deribit_describe to see the method's params.`);
   }
   if (error instanceof DeribitError) {
-    const hint = error.code === 10028 || error.code === -32000
-      ? ' Deribit is rate limiting; wait a few seconds and retry with fewer instruments.'
-      : '';
-    return fail(`Deribit rejected ${error.method}: ${error.message}.${hint}`);
+    const hints = {
+      10028: 'Deribit is rate limiting; wait a few seconds and retry with fewer instruments.',
+      11060: "Trades and charts aren't available for Coinbase-routed spot pairs; pass kind 'future' or 'option' (not 'spot'/'any'), or use the order book or ticker.",
+    };
+    const hint = hints[error.code] ? ` ${hints[error.code]}` : '';
+    return fail(`Deribit rejected the call: ${error.message}.${hint}`); // message already names the method
   }
   if (error instanceof DeribitTransportError) {
     return fail(`Could not reach Deribit for ${error.method}: ${error.message}. This is usually transient; retry.`);
@@ -56,4 +58,42 @@ export function safe(handler) {
       return toolError(error);
     }
   };
+}
+
+// ---- Tables ----
+
+function csvCell(value) {
+  if (value === undefined || value === null) return '';
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/** Rows (array of objects) to CSV. Columns: union of keys in first-seen order; nested values as JSON. */
+export function toCsv(rows) {
+  const columns = [];
+  const seen = new Set();
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      if (!seen.has(key)) {
+        seen.add(key);
+        columns.push(key);
+      }
+    }
+  }
+  return [columns.join(','), ...rows.map((row) => columns.map((c) => csvCell(row[c])).join(','))].join('\n');
+}
+
+/** Whether a value is a list of plain objects that reads well as a table. */
+export function isTable(value) {
+  return Array.isArray(value) && value.length > 0 && value.every((v) => v && typeof v === 'object' && !Array.isArray(v));
+}
+
+/**
+ * Tabular result: CSV by default (a JSON metadata line, a blank line, then the CSV),
+ * or JSON with the rows under `key` when format is 'json'.
+ */
+export function table(meta, key, rows, format = 'csv') {
+  if (format === 'json' || !isTable(rows)) return ok({ ...meta, [key]: rows });
+  const header = Object.values(meta).some((v) => v !== undefined) ? `${JSON.stringify({ ...meta, rows: rows.length })}\n\n` : '';
+  return { content: [{ type: 'text', text: `${header}${toCsv(rows)}` }] };
 }

@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { ok, fail, limitList, pick, safe } from '../format.js';
+import { ok, fail, limitList, pick, safe, table } from '../format.js';
 
 const READ = { readOnlyHint: true, openWorldHint: true };
+const FORMAT = z.enum(['csv', 'json']).default('csv').describe("'csv' (default, compact for long tables) or 'json'.");
 const DAY_MS = 86_400_000;
 
 const expiryOf = (name) => name.split('-')[1];
@@ -22,9 +23,10 @@ export function registerMarketTools(server, client) {
       min_strike: z.number().optional(),
       max_strike: z.number().optional(),
       limit: z.number().int().min(1).max(1000).default(300).describe('Maximum number of options to fetch.'),
+      format: FORMAT,
     }),
     annotations: { title: 'Options chain', ...READ },
-  }, safe(async ({ currency, underlying, expiries, min_strike, max_strike, limit }) => {
+  }, safe(async ({ currency, underlying, expiries, min_strike, max_strike, limit, format }) => {
     let options = await client.public.get_instruments({ currency, kind: 'option' });
     if (underlying) options = options.filter((o) => o.base_currency === underlying.toUpperCase());
     const bases = [...new Set(options.map((o) => o.base_currency))].sort();
@@ -65,12 +67,11 @@ export function registerMarketTools(server, client) {
     }).sort((a, b) => byExpiry.get(a.expiry).ts - byExpiry.get(b.expiry).ts || a.strike - b.strike || a.type.localeCompare(b.type));
 
     const first = snap[`incremental_ticker.${selected[0].instrument_name}`] ?? {};
-    return ok({
+    return table({
       underlying: bases[0], currency, expiries: wanted, forward_by_expiry: forwards,
       index_price: first.index_price, timestamp: first.timestamp,
       units: { price: settlementOf(currency, bases[0]), iv: 'percent' },
-      options: rows,
-    });
+    }, 'options', rows, format);
   }));
 
   server.registerTool('tickers', {
@@ -116,19 +117,17 @@ export function registerMarketTools(server, client) {
       kind: z.enum(['future', 'option', 'spot', 'future_combo', 'option_combo']),
       sort_by: z.enum(['volume_usd', 'open_interest']).default('volume_usd'),
       limit: z.number().int().min(1).max(200).default(20),
+      format: FORMAT,
     }),
     annotations: { title: 'Market overview', ...READ },
-  }, safe(async ({ currency, kind, sort_by, limit }) => {
+  }, safe(async ({ currency, kind, sort_by, limit, format }) => {
     const rows = await client.public.get_book_summary_by_currency({ currency, kind });
     rows.sort((a, b) => (b[sort_by] ?? 0) - (a[sort_by] ?? 0));
     const { items, total, truncated } = limitList(rows, limit, 'Raise limit to see more.');
-    return ok({
-      currency, kind, sorted_by: sort_by, total, truncated,
-      instruments: items.map((r) => pick(r, [
-        'instrument_name', 'mark_price', 'last', 'bid_price', 'ask_price', 'mid_price', 'price_change',
-        'volume', 'volume_usd', 'open_interest', 'current_funding', 'funding_8h', 'estimated_delivery_price',
-      ])),
-    });
+    return table({ currency, kind, sorted_by: sort_by, total, truncated }, 'instruments', items.map((r) => pick(r, [
+      'instrument_name', 'mark_price', 'last', 'bid_price', 'ask_price', 'mid_price', 'price_change',
+      'volume', 'volume_usd', 'open_interest', 'current_funding', 'funding_8h', 'estimated_delivery_price',
+    ])), format);
   }));
 
   server.registerTool('funding', {
@@ -138,9 +137,10 @@ export function registerMarketTools(server, client) {
       instrument_name: z.string().describe("A perpetual, e.g. 'BTC-PERPETUAL' or 'SOL_USDC-PERPETUAL'"),
       days: z.number().min(1).max(90).default(7),
       include_history: z.boolean().default(false).describe('Include the hourly rows (up to 24 x days).'),
+      format: FORMAT,
     }),
     annotations: { title: 'Perpetual funding', ...READ },
-  }, safe(async ({ instrument_name, days, include_history }) => {
+  }, safe(async ({ instrument_name, days, include_history, format }) => {
     const end = Date.now();
     const [history, ticker] = await Promise.all([
       client.public.get_funding_rate_history({ instrument_name, start_timestamp: end - days * DAY_MS, end_timestamp: end }),
@@ -148,12 +148,12 @@ export function registerMarketTools(server, client) {
     ]);
     const rates = history.map((h) => h.interest_8h).filter((v) => typeof v === 'number');
     const mean8h = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null;
-    return ok({
+    const summary = {
       instrument_name, window_days: days,
       current: pick(ticker, ['current_funding', 'funding_8h', 'mark_price', 'index_price', 'timestamp']),
       window: { samples: rates.length, mean_8h: mean8h, annualised_pct: mean8h === null ? null : mean8h * 3 * 365 * 100 },
-      ...(include_history ? { history } : {}),
-    });
+    };
+    return include_history ? table(summary, 'history', history, format) : ok(summary);
   }));
 
   server.registerTool('volatility', {
@@ -164,9 +164,10 @@ export function registerMarketTools(server, client) {
       days: z.number().min(1).max(365).default(30),
       resolution: z.enum(['1h', '12h', '1D']).default('1D'),
       include_series: z.boolean().default(false).describe('Include the DVOL candles and realised series.'),
+      format: FORMAT,
     }),
     annotations: { title: 'Implied vs realised volatility', ...READ },
-  }, safe(async ({ currency, days, resolution, include_series }) => {
+  }, safe(async ({ currency, days, resolution, include_series, format }) => {
     const end = Date.now();
     const res = { '1h': 3600, '12h': 43200, '1D': '1D' }[resolution];
     const [dvol, realised] = await Promise.all([
@@ -178,12 +179,18 @@ export function registerMarketTools(server, client) {
     const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
     const dvolLast = candles.at(-1)?.[4] ?? null;
     const rvLast = rv.at(-1)?.[1] ?? null;
-    return ok({
+    const summary = {
       currency, window_days: days,
       latest: { dvol: dvolLast, realised: rvLast, spread: dvolLast !== null && rvLast !== null ? dvolLast - rvLast : null },
       window_mean: { dvol: mean(candles.map((c) => c[4])), realised: mean(rv.map((r) => r[1])) },
-      ...(include_series ? { dvol_candles: { columns: ['timestamp', 'open', 'high', 'low', 'close'], rows: candles }, realised: rv } : {}),
-    });
+    };
+    if (!include_series) return ok(summary);
+    // One row per timestamp from either series; realised is daily, DVOL follows `resolution`.
+    const rowsByTs = new Map();
+    for (const [timestamp, open, high, low, close] of candles) rowsByTs.set(timestamp, { timestamp, dvol_open: open, dvol_high: high, dvol_low: low, dvol_close: close });
+    for (const [timestamp, value] of rv) rowsByTs.set(timestamp, { ...(rowsByTs.get(timestamp) ?? { timestamp }), realised: value });
+    const series = [...rowsByTs.values()].sort((a, b) => a.timestamp - b.timestamp);
+    return table(summary, 'series', series, format);
   }));
 
   server.registerTool('instruments', {
@@ -196,9 +203,10 @@ export function registerMarketTools(server, client) {
       underlying: z.string().optional().describe("Filter by base coin, e.g. 'SOL'"),
       expired: z.boolean().default(false),
       limit: z.number().int().min(1).max(1000).default(100),
+      format: FORMAT,
     }),
     annotations: { title: 'Instruments, expiries and combos', ...READ },
-  }, safe(async ({ view, currency, kind, underlying, expired, limit }) => {
+  }, safe(async ({ view, currency, kind, underlying, expired, limit, format }) => {
     if (view === 'expirations') {
       if (kind && !['future', 'option'].includes(kind)) return fail("expirations supports kind 'future' or 'option'.");
       return ok(await client.public.get_expirations({ currency, kind: kind ?? 'any' }));
@@ -206,17 +214,14 @@ export function registerMarketTools(server, client) {
     if (view === 'combos') {
       const combos = await client.public.get_combos({ currency });
       const { items, total, truncated } = limitList(combos, limit, 'Raise limit to see more.');
-      return ok({ total, truncated, combos: items });
+      return table({ total, truncated }, 'combos', items, format);
     }
     let rows = await client.public.get_instruments({ currency, kind, expired });
     if (underlying) rows = rows.filter((r) => r.base_currency === underlying.toUpperCase());
     const { items, total, truncated } = limitList(rows, limit, 'Filter by kind or underlying, or raise limit.');
-    return ok({
-      total, truncated,
-      instruments: items.map((r) => pick(r, [
-        'instrument_name', 'kind', 'base_currency', 'quote_currency', 'settlement_currency', 'expiration_timestamp',
-        'strike', 'option_type', 'contract_size', 'tick_size', 'min_trade_amount', 'is_active', 'state', 'is_cbe_routed',
-      ])),
-    });
+    return table({ total, truncated }, 'instruments', items.map((r) => pick(r, [
+      'instrument_name', 'kind', 'base_currency', 'quote_currency', 'settlement_currency', 'expiration_timestamp',
+      'strike', 'option_type', 'contract_size', 'tick_size', 'min_trade_amount', 'is_active', 'state', 'is_cbe_routed',
+    ])), format);
   }));
 }

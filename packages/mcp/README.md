@@ -62,7 +62,7 @@ npm run dev                                     # http://localhost:8787/deribit/
 | `cancel_orders` *(local)* | Cancel by currency, instrument or label, or cancel everything. |
 | `deribit_call_write` *(local)* | Any other state-changing private method. |
 
-All tools return JSON. Lists are capped, and a capped result says "Showing N of M" with a hint on how to narrow it.
+Tabular results (chains, overviews, instrument lists, trade and funding history, account lists) come back as **CSV**: a one-line JSON header with metadata (units, forwards, truncation), a blank line, then the table. Pass `format: 'json'` to get JSON instead. On live data CSV is 59–68% smaller. Other results are JSON. Lists are capped, and a capped result says "Showing N of M" with a hint on how to narrow it.
 
 ## Safety model
 
