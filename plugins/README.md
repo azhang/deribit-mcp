@@ -1,18 +1,21 @@
-# Skills
+# Plugins
 
 ## `deribit/`
 
-`deribit/` is the public Deribit skill: tool selection, instrument naming and units, safety rules for account tools, analysis recipes, and scripts that work without an MCP server. It follows the open `SKILL.md` format.
+`deribit/` is one plugin directory in two formats:
 
-In Claude Code, the `deribit` plugin installs this skill together with the hosted MCP server: `/plugin install deribit --marketplace azhang/deribit-mcp`. The marketplace is `.claude-plugin/marketplace.json` at the repo root.
+- **Claude Code:** `.claude-plugin/plugin.json`, listed in the repo's marketplace (`.claude-plugin/marketplace.json` at the repo root). Install with `/plugin install deribit --marketplace azhang/deribit-mcp`.
+- **[Agent Plugins 1.0](https://agent-plugins.org):** `plugin.json` and `mcp.json`, read by Hermes, Codex, Cursor, GitHub Copilot and other clients that support the format. Point the client at `azhang/deribit-mcp/plugins/deribit`.
 
-To install only the skill, copy or symlink the folder:
+Both install the `deribit` skill and the hosted MCP server (`https://mcp.x.zip/deribit/v2/mcp`, public data). Keep `version` and `description` the same in both manifests.
+
+The skill (`deribit/skills/deribit/`) covers tool selection, instrument naming and units, safety rules for account tools, analysis recipes, and scripts that work without an MCP server. It follows the open `SKILL.md` format. To install only the skill, copy or symlink the folder:
 
 | Host | Location |
 |---|---|
 | Claude Code | `~/.claude/skills/deribit` (all projects) or `.claude/skills/deribit` (one project) |
 | Codex | `~/.codex/skills/deribit` or `.codex/skills/deribit` |
-| Hermes | See [Hermes](#hermes) below |
+| Hermes | `hermes skills install azhang/deribit-mcp/plugins/deribit/skills/deribit` |
 
 The scripts need Node 22+ (or Deno or Bun) and nothing else. `scripts/lib/deribit.mjs` is a generated bundle of [`deribit-client-js`](https://github.com/azhang/deribit-client-js) and `packages/mcp/src/analytics.js`; rebuild it with `npm run build:skill` in `packages/mcp`. CI fails if it's stale.
 
@@ -20,31 +23,21 @@ Keep personal strategies, risk limits and account details in a separate private 
 
 ## Hermes
 
-[Hermes Agent](https://hermes-agent.nousresearch.com/docs/) has no package that carries a skill and an MCP server together, so set up the parts separately. Each Hermes profile has its own home directory, skills and `config.yaml`; run `hermes` commands with `-p <profile>` for a profile other than the default, and add Deribit only to the profiles that should have it.
+Each [Hermes Agent](https://hermes-agent.nousresearch.com/docs/) profile has its own home directory, plugins, skills and `config.yaml`; run `hermes` commands with `-p <profile>` for a profile other than the default, and add Deribit only to the profiles that should have it.
 
-### 1. The skill
+### 1. The plugin
 
 ```bash
-hermes skills install azhang/deribit-mcp/skills/deribit
+hermes -p <profile> plugins install azhang/deribit-mcp/plugins/deribit
 ```
 
-Hermes copies `SKILL.md` and the files it mentions (`references/`, `scripts/`) and scans them first. To install by hand instead, copy the whole `skills/deribit/` folder into the profile's skills directory under its `HERMES_HOME` (`~/.hermes` for the default profile), or list a directory that holds it under `skills.external_dirs` in the profile's `config.yaml`.
+The dashboard's Plugins page takes the same `azhang/deribit-mcp/plugins/deribit` under "Install from GitHub". It isn't in the Hermes catalog, so Hermes warns that the source is unreviewed and security-scans the plugin before it installs. Enable it when asked (`hermes -p <profile> plugins enable deribit` later): Hermes keeps Agent Plugins packages disabled until you do.
 
-The scripts need Node 22+ on the machine Hermes runs commands on. They read public data only.
+That gives the profile the skill and the hosted server, which is all you need for market data. The skill's name is namespaced (`agent-plugin-deribit-…:deribit`); the agent finds it with `skills_list`, and `hermes skills list` doesn't show it. The scripts need Node 22+ on the machine Hermes runs commands on.
 
-### 2. The MCP server
+### 2. Your account (optional)
 
-Pick one entry under `mcp_servers` in the profile's `config.yaml`.
-
-**Market data only** (the hosted server, nothing to install):
-
-```yaml
-mcp_servers:
-  deribit:
-    url: https://mcp.x.zip/deribit/v2/mcp
-```
-
-**Your account** (the local server, with your own key). Each `mcp-v<version>` release on GitHub carries the server as one file with no dependencies, which `npx` downloads and runs; the host needs Node 22+. Put the key in the profile's `.env`:
+For account tools, run the local server with your own key. A `deribit` entry under `mcp_servers` in the profile's `config.yaml` replaces the plugin's hosted server of the same name. Each `mcp-v<version>` release on GitHub carries the server as one file with no dependencies, which `npx` downloads and runs; the host needs Node 22+. Put the key in the profile's `.env`:
 
 ```bash
 DERIBIT_CLIENT_ID=…

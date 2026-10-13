@@ -4,10 +4,10 @@ name: v2 (MCP server + skill)
 
 on:
   pull_request:
-    paths: ['packages/**', 'skills/**', '.github/workflows/v2.yml']
+    paths: ['packages/**', 'plugins/**', '.github/workflows/v2.yml']
   push:
     branches: [main]
-    paths: ['packages/**', 'skills/**', '.github/workflows/v2.yml']
+    paths: ['packages/**', 'plugins/**', '.github/workflows/v2.yml']
   workflow_dispatch:
 
 jobs:
@@ -25,4 +25,4 @@ jobs:
           npm ci
           npm test
           npm run build
-          npm run build:skill -- --check  # skills/deribit/scripts/lib must match the client and analytics
+          npm run build:skill -- --check  # plugins/deribit/skills/deribit/scripts/lib must match the client and analytics

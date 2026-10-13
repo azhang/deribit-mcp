@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Bundle the Deribit client plus the shared analytics into one dependency-free ES module
- * for the skill's scripts: skills/deribit/scripts/lib/deribit.mjs.
+ * for the skill's scripts: plugins/deribit/skills/deribit/scripts/lib/deribit.mjs.
  *
  *   npm run build:skill          rebuild
  *   npm run build:skill -- --check  exit 1 if the checked-in bundle is stale (CI)
@@ -13,7 +13,7 @@ import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..', '..');
-const out = path.join(repo, 'skills', 'deribit', 'scripts', 'lib', 'deribit.mjs');
+const out = path.join(repo, 'plugins', 'deribit', 'skills', 'deribit', 'scripts', 'lib', 'deribit.mjs');
 
 const entry = `
 export * from 'deribit-client-js';

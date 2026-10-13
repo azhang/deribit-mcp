@@ -1,7 +1,8 @@
 - Never add attribution to commits or PRs: no `Co-Authored-By` trailers, no `Claude-Session` lines, no "Generated with Claude Code" text.
 - Deribit API source of truth: the published specs at https://docs.deribit.com/specifications/deribit_openapi.json and `deribit_asyncapi.json`, plus the changelog at https://docs.deribit.com/changelogs/jsonrpc. The Qdrant index is from an older snapshot.
 - The Deribit client lives in https://github.com/azhang/deribit-client-js and is generated from those specs. `packages/mcp` pins it to a release tag (`#0.1.0`). After bumping it, run `npm install`, `npm run classify` and `npm run build:skill` in `packages/mcp`, and commit `package-lock.json` (CI and releases use `npm ci`; keep the client's `resolved` URL `git+https://`, not `git+ssh://`).
-- v2 (`packages/mcp`, `skills/deribit`) is the active codebase; design in `docs/design/v2.md`. v1 (repo root `src/`) is frozen: don't change it.
+- v2 (`packages/mcp`, `plugins/deribit`) is the codebase; design in `docs/design/v2.md`. v1 was removed; it lives at the `v1` tag.
+- `plugins/deribit` is one plugin directory read by two formats: Claude Code (`.claude-plugin/plugin.json`) and Agent Plugins 1.0 (`plugin.json` + `mcp.json`, used by Hermes and others). Keep `version` and `description` the same in both manifests, and keep anything that isn't part of the plugin out of that directory: Hermes copies and security-scans all of it.
 - v2 has two modes:
   - **Hosted** (Cloudflare Worker): public data only; a server key is used only for rate limits.
   - **Local** (stdio): uses the user's own key and adds private tools. Writes require user confirmation.

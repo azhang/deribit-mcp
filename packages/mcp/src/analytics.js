@@ -1,6 +1,6 @@
 /**
  * Pure option analytics shared by the vol_surface tool and the skill's scripts
- * (bundled into skills/deribit/scripts/lib). No I/O.
+ * (bundled into plugins/deribit/skills/deribit/scripts/lib). No I/O.
  */
 
 export const YEAR_MS = 365 * 86_400_000;
