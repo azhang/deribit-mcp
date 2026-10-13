@@ -24,10 +24,11 @@ Keep personal strategies, risk limits and account details in a separate private 
 
 ### 1. The skill
 
-Copy the whole `skills/deribit/` folder into the profile's skills directory, keeping `scripts/` and `references/`:
+Copy the whole `skills/deribit/` folder into the profile's skills directory under its `HERMES_HOME` (`~/.hermes` for the default profile), keeping `scripts/` and `references/`:
 
 ```bash
-cp -R skills/deribit ~/.hermes/skills/finance/deribit
+mkdir -p "$HERMES_HOME/skills/finance"
+cp -R skills/deribit "$HERMES_HOME/skills/finance/deribit"
 ```
 
 Or point the profile at a directory that holds it, in that profile's `config.yaml`:
@@ -38,7 +39,7 @@ skills:
     - /path/to/deribit-mcp/skills
 ```
 
-`hermes skills install azhang/deribit-mcp/skills/deribit` also works, but Hermes copies only the files `SKILL.md` mentions, and a private repo needs `GITHUB_TOKEN`.
+`hermes skills install azhang/deribit-mcp/skills/deribit` should also work (untested): Hermes copies only the files `SKILL.md` mentions, and a private repo needs `GITHUB_TOKEN`.
 
 The scripts need Node 22+ on the machine Hermes runs commands on. They read public data only.
 
