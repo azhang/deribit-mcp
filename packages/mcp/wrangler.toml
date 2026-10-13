@@ -1,0 +1,25 @@
+name = "deribit-mcp-v2"
+main = "src/worker.js"
+compatibility_date = "2026-10-06"
+compatibility_flags = ["nodejs_compat"]
+
+# Not routed yet; served on workers.dev until a route is chosen.
+# routes = [{ pattern = "mcp.x.zip/deribit/v2/*", zone_name = "x.zip" }]
+
+[vars]
+DERIBIT_ENV = "production"
+# Comma-separated hostnames allowed in Host/Origin checks when served on a custom domain:
+# ALLOWED_HOSTNAMES = "mcp.x.zip"
+
+# Per-client-IP limit in front of the shared Deribit key.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 120, period = 60 }
+
+[observability]
+enabled = true
+
+# Secrets (read-only Deribit key used only for rate limits):
+#   wrangler secret put DERIBIT_CLIENT_ID
+#   wrangler secret put DERIBIT_CLIENT_SECRET
