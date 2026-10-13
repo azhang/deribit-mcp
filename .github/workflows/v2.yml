@@ -2,10 +2,10 @@ name: v2 (client + MCP server)
 
 on:
   pull_request:
-    paths: ['packages/**', '.github/workflows/v2.yml']
+    paths: ['packages/**', 'skills/**', '.github/workflows/v2.yml']
   push:
     branches: [main]
-    paths: ['packages/**', '.github/workflows/v2.yml']
+    paths: ['packages/**', 'skills/**', '.github/workflows/v2.yml']
   schedule:
     - cron: '17 6 * * 1' # Mondays 06:17 UTC: check Deribit's published specs for drift
   workflow_dispatch:
@@ -33,6 +33,7 @@ jobs:
           npm install --no-package-lock
           npm test
           npm run build
+          npm run build:skill -- --check  # skills/deribit/scripts/lib must match the client and analytics
 
   spec-drift:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -58,7 +59,7 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         run: |
           (cd packages/deribit-client && npm run generate && npm run typecheck && npm test) 2>&1 | tee -a spec-drift.txt
-          (cd packages/mcp && npm install --no-package-lock && npm run classify && npm test) 2>&1 | tee -a spec-drift.txt
+          (cd packages/mcp && npm install --no-package-lock && npm run classify && npm run build:skill && npm test) 2>&1 | tee -a spec-drift.txt
         continue-on-error: true # open the PR either way; failing tests are part of what it reports
 
       - name: Open a PR with the update
@@ -70,7 +71,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
-          git add packages/deribit-client/spec packages/deribit-client/src/generated packages/mcp/src/generated
+          git add packages/deribit-client/spec packages/deribit-client/src/generated packages/mcp/src/generated skills/deribit/scripts/lib
           git commit -m "Update vendored Deribit specs"
           git push -u origin "$branch"
           {
