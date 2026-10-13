@@ -111,6 +111,7 @@ test('network failures become DeribitTransportError', async () => {
 
 class FakeSocket {
   static instances = [];
+  static refuse = new Set(); // channels Deribit would silently skip
   constructor(url) {
     this.url = url;
     this.sent = [];
@@ -121,7 +122,8 @@ class FakeSocket {
     const msg = JSON.parse(raw);
     this.sent.push(msg);
     const reply = (result) => queueMicrotask(() => this.onmessage?.({ data: JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }) }));
-    if (msg.method.endsWith('/subscribe') || msg.method.endsWith('/unsubscribe')) reply(msg.params.channels);
+    if (msg.method.endsWith('/subscribe')) reply(msg.params.channels.filter((c) => !FakeSocket.refuse.has(c)));
+    else if (msg.method.endsWith('/unsubscribe')) reply(msg.params.channels);
     else if (msg.method === 'public/auth') reply({ access_token: 't' });
     else reply('ok');
   }
@@ -227,5 +229,51 @@ test('overlapping snapshots of the same channel both resolve', async () => {
   assert.deepEqual(snap[ch].greeks, { delta: 0.5 });
   // Only one server-side subscribe was sent
   assert.equal(ws.sent.filter((m) => m.method === 'public/subscribe').length, 1);
+  d.close();
+});
+
+test('snapshot() skips channels Deribit refuses instead of timing out', async () => {
+  FakeSocket.instances = [];
+  FakeSocket.refuse = new Set(['incremental_ticker.BTC-TYPO']);
+  const d = new Deribit({ WebSocket: FakeSocket, idleTimeoutMs: 0 });
+  const good = 'incremental_ticker.BTC-PERPETUAL';
+  const started = Date.now();
+  const pending = d.snapshot([good, 'incremental_ticker.BTC-TYPO'], { timeoutMs: 2000 });
+  await new Promise((r) => setTimeout(r, 10));
+  FakeSocket.instances[0].push(good, { type: 'snapshot', mark_price: 1 });
+  const result = await pending;
+  assert.ok(Date.now() - started < 1000);
+  assert.deepEqual(Object.keys(result), [good]);
+  assert.deepEqual(result.rejected, ['incremental_ticker.BTC-TYPO']);
+  FakeSocket.refuse = new Set();
+  d.close();
+});
+
+test('sending on a closed socket fails fast with a transport error', async () => {
+  FakeSocket.instances = [];
+  const d = new Deribit({ WebSocket: FakeSocket, transport: 'ws', idleTimeoutMs: 0 });
+  await d.public.get_time();
+  const ws = FakeSocket.instances[0];
+  ws.readyState = 3; // CLOSED, before onclose has fired
+  const started = Date.now();
+  await assert.rejects(d.public.get_time(), (err) => err instanceof DeribitTransportError && /not open/.test(err.message));
+  assert.ok(Date.now() - started < 1000);
+  d.close();
+});
+
+test('subscriptions reconnect and resubscribe after the server drops the socket', async () => {
+  FakeSocket.instances = [];
+  const d = new Deribit({ WebSocket: FakeSocket, idleTimeoutMs: 0 });
+  const seen = [];
+  const sub = await d.subscribe('ticker.BTC-PERPETUAL.100ms', (data) => seen.push(data.n));
+  FakeSocket.instances[0].push('ticker.BTC-PERPETUAL.100ms', { n: 1 });
+  FakeSocket.instances[0].close(); // server-side drop
+  await new Promise((r) => setTimeout(r, 1300)); // first backoff is 1s
+  assert.equal(FakeSocket.instances.length, 2, 'reconnected');
+  const ws2 = FakeSocket.instances[1];
+  assert.ok(ws2.sent.some((m) => m.method === 'public/subscribe' && m.params.channels.includes('ticker.BTC-PERPETUAL.100ms')), 'resubscribed');
+  ws2.push('ticker.BTC-PERPETUAL.100ms', { n: 2 });
+  assert.deepEqual(seen, [1, 2]);
+  await sub.unsubscribe();
   d.close();
 });
