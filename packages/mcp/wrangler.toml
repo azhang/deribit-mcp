@@ -3,12 +3,14 @@ main = "src/worker.js"
 compatibility_date = "2026-10-06"
 compatibility_flags = ["nodejs_compat"]
 
-# Not routed yet; served on workers.dev until a route is chosen.
-# routes = [{ pattern = "mcp.x.zip/deribit/v2/*", zone_name = "x.zip" }]
+# More specific than v1's mcp.x.zip/deribit/*, so it takes /deribit/v2/* from v1.
+# Deployed by Cloudflare Workers Builds on push to main (root directory packages/mcp).
+routes = [{ pattern = "mcp.x.zip/deribit/v2/*", zone_name = "x.zip" }]
 
 [vars]
 DERIBIT_ENV = "production"
-# Comma-separated hostnames allowed in Host/Origin checks when served on a custom domain:
+# Optional comma-separated Host allowlist. Unset, a custom domain skips the Host check
+# and workers.dev accepts only its own hostname.
 # ALLOWED_HOSTNAMES = "mcp.x.zip"
 
 # Per-client-IP limit in front of the shared Deribit key.
