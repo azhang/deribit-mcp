@@ -36,7 +36,7 @@ The deribit MCP server (v2) has 11 tools on the hosted server and 14 on a local 
 
 ## Scripts (no MCP server needed)
 
-`scripts/` runs anywhere with Node 22+ (or Deno or Bun) and has no installs: `scripts/lib/deribit.mjs` bundles the same client and analytics the MCP server uses. The scripts read public data only. Set `DERIBIT_CLIENT_ID` and `DERIBIT_CLIENT_SECRET` to authenticate calls for higher rate limits.
+`scripts/` runs anywhere with Node 22+ (or Deno or Bun) and has no installs: `scripts/lib/deribit.mjs` bundles the same client and analytics the MCP server uses, and `scripts/_common.mjs` holds their shared client setup, argument parsing and output. The scripts read public data only. Set `DERIBIT_CLIENT_ID` and `DERIBIT_CLIENT_SECRET` to authenticate calls for higher rate limits.
 
 | Script | Does |
 |---|---|
