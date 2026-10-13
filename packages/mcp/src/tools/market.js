@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ok, fail, limitList, pick, safe, table } from '../format.js';
+import { ok, fail, limitList, pick, safe, table, tableOrSave, saveParam } from '../format.js';
 
 const READ = { readOnlyHint: true, openWorldHint: true };
 const FORMAT = z.enum(['csv', 'json']).default('csv').describe("'csv' (default, compact for long tables) or 'json'.");
@@ -9,7 +9,12 @@ const expiryOf = (name) => name.split('-')[1];
 const settlementOf = (currency, base) => (currency === 'USDC' ? 'USDC' : base);
 
 /** @param {import('@modelcontextprotocol/server').McpServer} server */
-export function registerMarketTools(server, client) {
+/**
+ * @param {{ market?: { snapshot: Function }, save?: Function }} [deps] local extras: a live
+ *   snapshot source (defaults to the client's one-shot snapshot) and a CSV saver.
+ */
+export function registerMarketTools(server, client, deps = {}) {
+  const market = deps.market ?? client;
   server.registerTool('options_chain', {
     title: 'Options chain',
     description:
@@ -24,9 +29,10 @@ export function registerMarketTools(server, client) {
       max_strike: z.number().optional(),
       limit: z.number().int().min(1).max(1000).default(300).describe('Maximum number of options to fetch.'),
       format: FORMAT,
+      ...saveParam(deps),
     }),
     annotations: { title: 'Options chain', ...READ },
-  }, safe(async ({ currency, underlying, expiries, min_strike, max_strike, limit, format }) => {
+  }, safe(async ({ currency, underlying, expiries, min_strike, max_strike, limit, format, save_to }) => {
     let options = await client.public.get_instruments({ currency, kind: 'option' });
     if (underlying) options = options.filter((o) => o.base_currency === underlying.toUpperCase());
     const bases = [...new Set(options.map((o) => o.base_currency))].sort();
@@ -51,7 +57,7 @@ export function registerMarketTools(server, client) {
       return fail(`${selected.length} options match (limit ${limit}). Narrow with min_strike/max_strike or fewer expiries, or raise limit.`);
     }
 
-    const snap = await client.snapshot(selected.map((o) => `incremental_ticker.${o.instrument_name}`), { timeoutMs: 20_000 });
+    const snap = await market.snapshot(selected.map((o) => `incremental_ticker.${o.instrument_name}`), { timeoutMs: 20_000 });
     const forwards = {};
     const rows = selected.map((o) => {
       const t = snap[`incremental_ticker.${o.instrument_name}`] ?? {};
@@ -67,7 +73,7 @@ export function registerMarketTools(server, client) {
     }).sort((a, b) => byExpiry.get(a.expiry).ts - byExpiry.get(b.expiry).ts || a.strike - b.strike || a.type.localeCompare(b.type));
 
     const first = snap[`incremental_ticker.${selected[0].instrument_name}`] ?? {};
-    return table({
+    return tableOrSave(deps, save_to, {
       underlying: bases[0], currency, expiries: wanted, forward_by_expiry: forwards,
       index_price: first.index_price, timestamp: first.timestamp,
       units: { price: settlementOf(currency, bases[0]), iv: 'percent' },
@@ -82,7 +88,7 @@ export function registerMarketTools(server, client) {
     }),
     annotations: { title: 'Tickers', ...READ },
   }, safe(async ({ instrument_names }) => {
-    const snap = await client.snapshot(instrument_names.map((n) => `incremental_ticker.${n}`));
+    const snap = await market.snapshot(instrument_names.map((n) => `incremental_ticker.${n}`));
     return ok(Object.fromEntries(instrument_names.map((n) => {
       const { type, ...data } = snap[`incremental_ticker.${n}`] ?? {};
       return [n, data];
@@ -118,13 +124,14 @@ export function registerMarketTools(server, client) {
       sort_by: z.enum(['volume_usd', 'open_interest']).default('volume_usd'),
       limit: z.number().int().min(1).max(200).default(20),
       format: FORMAT,
+      ...saveParam(deps),
     }),
     annotations: { title: 'Market overview', ...READ },
-  }, safe(async ({ currency, kind, sort_by, limit, format }) => {
+  }, safe(async ({ currency, kind, sort_by, limit, format, save_to }) => {
     const rows = await client.public.get_book_summary_by_currency({ currency, kind });
     rows.sort((a, b) => (b[sort_by] ?? 0) - (a[sort_by] ?? 0));
     const { items, total, truncated } = limitList(rows, limit, 'Raise limit to see more.');
-    return table({ currency, kind, sorted_by: sort_by, total, truncated }, 'instruments', items.map((r) => pick(r, [
+    return tableOrSave(deps, save_to, { currency, kind, sorted_by: sort_by, total, truncated }, 'instruments', items.map((r) => pick(r, [
       'instrument_name', 'mark_price', 'last', 'bid_price', 'ask_price', 'mid_price', 'price_change',
       'volume', 'volume_usd', 'open_interest', 'current_funding', 'funding_8h', 'estimated_delivery_price',
     ])), format);
@@ -138,9 +145,10 @@ export function registerMarketTools(server, client) {
       days: z.number().min(1).max(90).default(7),
       include_history: z.boolean().default(false).describe('Include the hourly rows (up to 24 x days).'),
       format: FORMAT,
+      ...saveParam(deps),
     }),
     annotations: { title: 'Perpetual funding', ...READ },
-  }, safe(async ({ instrument_name, days, include_history, format }) => {
+  }, safe(async ({ instrument_name, days, include_history, format, save_to }) => {
     const end = Date.now();
     const [history, ticker] = await Promise.all([
       client.public.get_funding_rate_history({ instrument_name, start_timestamp: end - days * DAY_MS, end_timestamp: end }),
@@ -153,7 +161,7 @@ export function registerMarketTools(server, client) {
       current: pick(ticker, ['current_funding', 'funding_8h', 'mark_price', 'index_price', 'timestamp']),
       window: { samples: rates.length, mean_8h: mean8h, annualised_pct: mean8h === null ? null : mean8h * 3 * 365 * 100 },
     };
-    return include_history ? table(summary, 'history', history, format) : ok(summary);
+    return include_history || save_to ? tableOrSave(deps, save_to, summary, 'history', history, format) : ok(summary);
   }));
 
   server.registerTool('volatility', {
@@ -167,9 +175,10 @@ export function registerMarketTools(server, client) {
       resolution: z.enum(['1h', '12h', '1D']).default('1D'),
       include_series: z.boolean().default(false).describe('Include the DVOL candles, with the latest realised value at each timestamp.'),
       format: FORMAT,
+      ...saveParam(deps),
     }),
     annotations: { title: 'Implied vs realised volatility', ...READ },
-  }, safe(async ({ currency, days, resolution, include_series, format }) => {
+  }, safe(async ({ currency, days, resolution, include_series, format, save_to }) => {
     const end = Date.now();
     const start = end - days * DAY_MS;
     const res = { '1h': 3600, '12h': 43200, '1D': '1D' }[resolution];
@@ -211,7 +220,7 @@ export function registerMarketTools(server, client) {
     if (summary.overlap.dvol_mean !== null && summary.overlap.realised_mean !== null) {
       summary.overlap.spread = summary.overlap.dvol_mean - summary.overlap.realised_mean;
     }
-    if (!include_series) return ok(summary);
+    if (!include_series && !save_to) return ok(summary);
 
     // One row per DVOL candle; realised is the latest value at or before that time (as-of join).
     let j = -1;
@@ -219,7 +228,7 @@ export function registerMarketTools(server, client) {
       while (j + 1 < realised.length && realised[j + 1][0] <= timestamp) j += 1;
       return { timestamp, dvol_open: open, dvol_high: high, dvol_low: low, dvol_close: close, realised: j >= 0 ? realised[j][1] : undefined };
     });
-    return table(summary, 'series', series, format);
+    return tableOrSave(deps, save_to, summary, 'series', series, format);
   }));
 
   server.registerTool('instruments', {
@@ -233,9 +242,10 @@ export function registerMarketTools(server, client) {
       expired: z.boolean().default(false),
       limit: z.number().int().min(1).max(1000).default(100),
       format: FORMAT,
+      ...saveParam(deps),
     }),
     annotations: { title: 'Instruments, expiries and combos', ...READ },
-  }, safe(async ({ view, currency, kind, underlying, expired, limit, format }) => {
+  }, safe(async ({ view, currency, kind, underlying, expired, limit, format, save_to }) => {
     if (view === 'expirations') {
       if (kind && !['future', 'option'].includes(kind)) return fail("expirations supports kind 'future' or 'option'.");
       if (currency === 'EURR') return fail("expirations doesn't support EURR; use BTC, ETH, USDC, USDT or any.");
@@ -244,12 +254,12 @@ export function registerMarketTools(server, client) {
     if (view === 'combos') {
       const combos = await client.public.get_combos({ currency });
       const { items, total, truncated } = limitList(combos, limit, 'Raise limit to see more.');
-      return table({ total, truncated }, 'combos', items, format);
+      return tableOrSave(deps, save_to, { total, truncated }, 'combos', items, format);
     }
     let rows = await client.public.get_instruments({ currency, kind, expired });
     if (underlying) rows = rows.filter((r) => r.base_currency === underlying.toUpperCase());
     const { items, total, truncated } = limitList(rows, limit, 'Filter by kind or underlying, or raise limit.');
-    return table({ total, truncated }, 'instruments', items.map((r) => pick(r, [
+    return tableOrSave(deps, save_to, { total, truncated }, 'instruments', items.map((r) => pick(r, [
       'instrument_name', 'kind', 'base_currency', 'quote_currency', 'settlement_currency', 'expiration_timestamp',
       'strike', 'option_type', 'contract_size', 'tick_size', 'min_trade_amount', 'is_active', 'state', 'is_cbe_routed',
     ])), format);

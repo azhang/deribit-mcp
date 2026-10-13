@@ -34,6 +34,14 @@ Claude Code, or any client config that runs a command:
 
 Without a key it serves the same public tools as the hosted server. Logs go to stderr; stdout carries only MCP messages.
 
+The local server can do three things the hosted one can't:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `DERIBIT_LIVE_TTL` | `15` | **Live data.** Market subscriptions stay open after first use, so repeat calls answer from memory, kept current by the stream. A channel is dropped after this many minutes without a request, and the socket closes once none are left. Everything also ends when the session's process exits. Measured: tickers 2.2 s cold → 5–6 ms warm; `vol_surface` and `options_chain` about 150 ms warm (the rest is uncached HTTP lookups). `0` turns it off and every call takes a fresh one-shot snapshot. |
+| `DERIBIT_OUTPUT_DIR` | `./deribit-data` | **`save_to`.** Tabular tools write the full table to a CSV file under this folder and return the path, row count and a 5-row preview. Paths that are absolute or leave the folder are refused. |
+| `HTTPS_PROXY` | | **Proxy.** Used for both HTTP and WebSocket. Node's built-ins ignore it, so the server routes both through `undici`. |
+
 ### Hosted
 
 ```bash

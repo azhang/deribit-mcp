@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { fail, safe, table } from '../format.js';
+import { fail, safe, tableOrSave, saveParam } from '../format.js';
 import { buildSurface, termStructure, smile, sigfig } from '../analytics.js';
 
 /** @param {import('@modelcontextprotocol/server').McpServer} server */
-export function registerSurfaceTool(server, client) {
+export function registerSurfaceTool(server, client, deps = {}) {
+  const market = deps.market ?? client;
   server.registerTool('vol_surface', {
     title: 'Volatility surface',
     description:
@@ -19,9 +20,10 @@ export function registerSurfaceTool(server, client) {
       max_moneyness: z.number().positive().default(2).describe('Smile: highest strike / forward to include.'),
       otm_only: z.boolean().default(true).describe('Smile: only out-of-the-money options (puts below the forward, calls above), the liquid side.'),
       format: z.enum(['csv', 'json']).default('csv'),
+      ...saveParam(deps),
     }),
     annotations: { title: 'Volatility surface', readOnlyHint: true, openWorldHint: true },
-  }, safe(async ({ currency, underlying, view, expiries, min_moneyness, max_moneyness, otm_only, format }) => {
+  }, safe(async ({ currency, underlying, view, expiries, min_moneyness, max_moneyness, otm_only, format, save_to }) => {
     const inverse = currency !== 'USDC';
     const base = inverse ? currency : underlying?.toUpperCase();
     if (!base) return fail("USDC options need underlying, e.g. 'SOL'.");
@@ -29,7 +31,7 @@ export function registerSurfaceTool(server, client) {
     const channel = `markprice.options.${indexName}`;
 
     const [snap, index] = await Promise.all([
-      client.snapshot([channel], { timeoutMs: 15_000 }),
+      market.snapshot([channel], { timeoutMs: 15_000 }),
       client.public.get_index_price({ index_name: indexName }),
     ]);
     if (!snap[channel]) return fail(`No option marks for ${indexName}; check currency/underlying.`);
@@ -51,9 +53,9 @@ export function registerSurfaceTool(server, client) {
     if (view === 'smile') {
       const forwards = Object.fromEntries(perExpiry.map((e) => [e.expiry, sigfig(e.forward)]));
       const rows = smile(perExpiry, { minMoneyness: min_moneyness, maxMoneyness: max_moneyness, otmOnly: otm_only });
-      return table({ ...meta, forward_by_expiry: forwards }, 'smile', rows, format);
+      return tableOrSave(deps, save_to, { ...meta, forward_by_expiry: forwards }, 'smile', rows, format);
     }
-    return table(meta, 'term_structure', termStructure(perExpiry), format);
+    return tableOrSave(deps, save_to, meta, 'term_structure', termStructure(perExpiry), format);
   }));
 }
 

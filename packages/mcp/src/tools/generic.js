@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { search, methods, channels, validateParams } from '@deribit-mcp/client';
-import { ok, fail, limitList, safe, table, isTable } from '../format.js';
+import { ok, fail, limitList, safe, table, isTable, tableOrSave, saveParam } from '../format.js';
 import { requireConfirmation } from '../confirm.js';
 
 const MAX_TEXT = 60_000;
@@ -43,7 +43,7 @@ export function shapeResult(result, limit, format = 'csv') {
  * @param {import('@modelcontextprotocol/server').McpServer} server
  * @param {ReturnType<import('../classify.js').createPolicy>} policy
  */
-export function registerGenericTools(server, client, policy) {
+export function registerGenericTools(server, client, policy, deps = {}) {
   const local = policy.mode === 'local';
   const callable = local ? 'public and private read methods' : 'public market-data methods';
 
@@ -95,13 +95,21 @@ export function registerGenericTools(server, client, policy) {
       params: z.record(z.string(), z.unknown()).default({}),
       limit: z.number().int().min(1).max(1000).default(100).describe('Cap for list results.'),
       format: z.enum(['csv', 'json']).default('csv').describe("Lists of records come back as CSV by default; 'json' keeps them as JSON."),
+      ...saveParam(deps),
     }),
     annotations: { title: 'Call Deribit API (read)', readOnlyHint: true, openWorldHint: true },
-  }, safe(async ({ method, params, limit, format }) => {
+  }, safe(async ({ method, params, limit, format, save_to }) => {
     const cls = policy.classOf(method);
     if (cls === 'private_write') return fail(`${method} changes account state; use deribit_call_write.`);
     if (cls === 'blocked') return fail(`${method} is not available: ${policy.reason(method)}.`);
-    return shapeResult(await client.call(method, params), limit, format);
+    const result = await client.call(method, params);
+    if (save_to) {
+      // Save the full list (not capped by limit): the main array, or the result itself
+      const rows = Array.isArray(result) ? result : Object.values(result ?? {}).filter(Array.isArray).sort((a, b) => b.length - a.length)[0];
+      const meta = Array.isArray(result) ? {} : Object.fromEntries(Object.entries(result).filter(([, v]) => v !== rows));
+      return tableOrSave(deps, save_to, { method, ...meta }, 'items', rows ?? [], format);
+    }
+    return shapeResult(result, limit, format);
   }));
 
   if (!local) return;

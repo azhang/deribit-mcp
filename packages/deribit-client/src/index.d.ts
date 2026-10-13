@@ -98,6 +98,8 @@ export class Deribit {
   readonly private: Scoped<'private'>;
   call<M extends Method>(method: M, ...args: [...ParamArgs<M>, options?: { transport?: 'http' | 'ws' }]): Promise<Result<M>>;
   subscribe(channels: string | string[], listener: (data: any, channel: string) => void): Promise<Subscription>;
+  /** Remove a listener from some channels (a handle's unsubscribe() removes it from all of its channels). */
+  unsubscribe(channels: string | string[], listener: (data: any, channel: string) => void): Promise<void>;
   /** Refused channels are omitted from the result and listed in its non-enumerable `rejected` property. */
   snapshot(channels: string | string[], options?: { timeoutMs?: number }): Promise<Record<string, any> & { rejected?: string[] }>;
   close(): void;

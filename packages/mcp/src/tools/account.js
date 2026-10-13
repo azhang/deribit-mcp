@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { ok, fail, safe, table } from '../format.js';
+import { ok, fail, safe, table, tableOrSave, saveParam } from '../format.js';
 import { requireConfirmation } from '../confirm.js';
 
 const CURRENCY = z.string().describe("e.g. 'BTC', 'ETH', 'USDC'");
 
 /** Local mode only: the user's own account. */
-export function registerAccountTools(server, client) {
+export function registerAccountTools(server, client, deps = {}) {
   server.registerTool('account', {
     title: 'Account',
     description: "Your Deribit account: balances and margin ('summary'), open positions with greeks ('positions'), open orders, recent fills ('trades'), or order history.",
@@ -15,9 +15,10 @@ export function registerAccountTools(server, client) {
       kind: z.enum(['future', 'option', 'spot', 'future_combo', 'option_combo']).optional(),
       count: z.number().int().min(1).max(1000).default(50).describe('For trades and order_history.'),
       format: z.enum(['csv', 'json']).default('csv').describe("Lists come back as CSV by default; 'json' keeps them as JSON."),
+      ...saveParam(deps),
     }),
     annotations: { title: 'Account', readOnlyHint: true, openWorldHint: true },
-  }, safe(async ({ view, currency, kind, count, format }) => {
+  }, safe(async ({ view, currency, kind, count, format, save_to }) => {
     if (view !== 'open_orders' && !currency) return fail(`view '${view}' needs a currency.`);
     const call = {
       summary: () => client.private.get_account_summary({ currency, extended: true }),
@@ -31,7 +32,7 @@ export function registerAccountTools(server, client) {
     const result = await call();
     const rows = Array.isArray(result) ? result : result?.trades; // get_user_trades_by_currency returns { trades, has_more }
     if (Array.isArray(rows)) {
-      return table({ environment: client.env, view, currency, ...(result.has_more !== undefined ? { has_more: result.has_more } : {}) }, view, rows, format);
+      return tableOrSave(deps, save_to, { environment: client.env, view, currency, ...(result.has_more !== undefined ? { has_more: result.has_more } : {}) }, view, rows, format);
     }
     return ok({ environment: client.env, view, result });
   }));
