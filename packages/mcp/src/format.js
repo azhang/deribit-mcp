@@ -1,4 +1,12 @@
+import { z } from 'zod';
 import { DeribitError, DeribitTransportError, DeribitValidationError } from '@deribit-mcp/client';
+
+/** Local servers only: a `save_to` param that writes the table to a CSV file. */
+export function saveParam(deps) {
+  return deps?.save
+    ? { save_to: z.string().optional().describe('Write the full table to this CSV file (relative path in the output folder) and return only a summary and preview. Use for large tables you will analyse with scripts.') }
+    : {};
+}
 
 /** Successful tool result: compact JSON text. */
 export function ok(data) {
@@ -96,4 +104,16 @@ export function table(meta, key, rows, format = 'csv') {
   if (format === 'json' || !isTable(rows)) return ok({ ...meta, [key]: rows });
   const header = Object.values(meta).some((v) => v !== undefined) ? `${JSON.stringify({ ...meta, rows: rows.length })}\n\n` : '';
   return { content: [{ type: 'text', text: `${header}${toCsv(rows)}` }] };
+}
+
+/**
+ * Like table(), but when the local server has a saver and the caller passed save_to,
+ * writes the rows to CSV and returns the metadata, file path and a short preview.
+ */
+export async function tableOrSave(deps, saveTo, meta, key, rows, format) {
+  if (!saveTo || !deps?.save) return table(meta, key, rows, format);
+  if (!isTable(rows)) return fail(`Nothing tabular to save for ${key}.`);
+  const file = await deps.save(saveTo, rows);
+  const preview = toCsv(rows.slice(0, 5));
+  return ok({ ...meta, saved_to: file, rows: rows.length, columns: preview.split('\n')[0].split(','), preview });
 }

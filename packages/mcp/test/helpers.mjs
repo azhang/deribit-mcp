@@ -55,9 +55,9 @@ export function stubDeribit({ routes = {}, tickers = {}, channels = {}, credenti
  * Connect an SDK v2 client to the real HTTP handler in-process (no sockets).
  * @param {{ mode: 'hosted' | 'local', deribit: Deribit, elicit?: (req) => object, era?: string }} options
  */
-export async function connect({ mode, deribit, elicit, allow, deny, era = '2026-07-28' }) {
+export async function connect({ mode, deribit, elicit, allow, deny, era = '2026-07-28', market, save }) {
   const policy = createPolicy({ mode, allow, deny });
-  const handler = createMcpHandler(() => createServer({ client: deribit, policy }), { route: '/mcp' });
+  const handler = createMcpHandler(() => createServer({ client: deribit, policy, market, save }), { route: '/mcp' });
   const transport = new StreamableHTTPClientTransport(new URL('http://localhost/mcp'), {
     fetch: (url, init) => {
       // Workers always set Host; Node's Request doesn't, and the handler checks it.

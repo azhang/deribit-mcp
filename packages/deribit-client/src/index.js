@@ -125,6 +125,11 @@ export class Deribit {
     };
   }
 
+  /** Remove `listener` from channels; the server subscription ends once a channel has no listeners. */
+  unsubscribe(channelNames, listener) {
+    return this.ws.unsubscribe([].concat(channelNames), listener);
+  }
+
   /**
    * Subscribe, wait for one complete message per channel, then unsubscribe. For
    * `incremental_ticker.*` channels, later `change` messages are merged into the

@@ -20,16 +20,19 @@ const INSTRUCTIONS = {
 /**
  * Build a server for one request (hosted) or one connection (stdio).
  *
- * @param {{ client: import('@deribit-mcp/client').Deribit, policy: ReturnType<import('./classify.js').createPolicy> }} deps
+ * @param {{ client: import('@deribit-mcp/client').Deribit, policy: ReturnType<import('./classify.js').createPolicy>,
+ *   market?: { snapshot: Function }, save?: Function }} deps
+ *   `market` and `save` are local-only extras (live cache, CSV files); the hosted server omits them.
  */
-export function createServer({ client, policy }) {
+export function createServer({ client, policy, market, save }) {
+  const deps = { market, save };
   const server = new McpServer(
     { name: 'deribit', version: VERSION },
     { instructions: INSTRUCTIONS[policy.mode] },
   );
-  registerMarketTools(server, client);
-  registerSurfaceTool(server, client);
-  if (policy.mode === 'local') registerAccountTools(server, client);
-  registerGenericTools(server, client, policy);
+  registerMarketTools(server, client, deps);
+  registerSurfaceTool(server, client, deps);
+  if (policy.mode === 'local') registerAccountTools(server, client, deps);
+  registerGenericTools(server, client, policy, deps);
   return server;
 }

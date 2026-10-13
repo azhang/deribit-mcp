@@ -70,6 +70,10 @@ Output is the same JSON-header-plus-CSV format as the tools; add `--json` for JS
 - **Unknown or expired instruments** in `tickers`/`options_chain` are skipped and reported, not fatal.
 - **Rate limits:** the hosted server authenticates with its own key and caps each client IP at 120 requests a minute. Batch with the plural tools.
 
+## Local server extras
+
+A local server (stdio) keeps market data live for the session. The first call to a chain, surface or ticker subscribes, and later calls answer from memory in milliseconds, so repeated or iterative questions are cheap there. Tabular tools there also take `save_to: 'path/name'`, which writes the full table to CSV and returns only a summary. Use it for large tables you'll analyse with a script rather than read.
+
 ## Account tools (local server with the user's key)
 
 These touch a real account.
