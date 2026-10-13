@@ -24,22 +24,11 @@ Keep personal strategies, risk limits and account details in a separate private 
 
 ### 1. The skill
 
-Copy the whole `skills/deribit/` folder into the profile's skills directory under its `HERMES_HOME` (`~/.hermes` for the default profile), keeping `scripts/` and `references/`:
-
 ```bash
-mkdir -p "$HERMES_HOME/skills/finance"
-cp -R skills/deribit "$HERMES_HOME/skills/finance/deribit"
+hermes skills install azhang/deribit-mcp/skills/deribit
 ```
 
-Or point the profile at a directory that holds it, in that profile's `config.yaml`:
-
-```yaml
-skills:
-  external_dirs:
-    - /path/to/deribit-mcp/skills
-```
-
-`hermes skills install azhang/deribit-mcp/skills/deribit` should also work (untested): Hermes copies only the files `SKILL.md` mentions, and a private repo needs `GITHUB_TOKEN`.
+Hermes copies `SKILL.md` and the files it mentions (`references/`, `scripts/`) and scans them first. To install by hand instead, copy the whole `skills/deribit/` folder into the profile's skills directory under its `HERMES_HOME` (`~/.hermes` for the default profile), or list a directory that holds it under `skills.external_dirs` in the profile's `config.yaml`.
 
 The scripts need Node 22+ on the machine Hermes runs commands on. They read public data only.
 
@@ -55,7 +44,7 @@ mcp_servers:
     url: https://mcp.x.zip/deribit/v2/mcp
 ```
 
-**Your account** (the local server, with your own key). Build the single file with `npm run build:stdio` in `packages/mcp` and copy `bundle/deribit-mcp.mjs` to the Hermes host. Put the key in the profile's `.env`:
+**Your account** (the local server, with your own key). Each `mcp-v<version>` release on GitHub carries the server as one file with no dependencies, which `npx` downloads and runs; the host needs Node 22+. Put the key in the profile's `.env`:
 
 ```bash
 DERIBIT_CLIENT_ID=…
@@ -67,8 +56,8 @@ Then:
 ```yaml
 mcp_servers:
   deribit:
-    command: node
-    args: [/path/to/deribit-mcp.mjs]
+    command: npx
+    args: ["-y", "https://github.com/azhang/deribit-mcp/releases/download/mcp-v<version>/deribit-mcp-server-<version>.tgz"]
     env:
       DERIBIT_CLIENT_ID: "${DERIBIT_CLIENT_ID}"
       DERIBIT_CLIENT_SECRET: "${DERIBIT_CLIENT_SECRET}"
@@ -77,6 +66,8 @@ mcp_servers:
     tools:
       exclude: [cancel_orders, deribit_call_write]
 ```
+
+The dashboard's "Add MCP server" form takes the same command, args and environment. To update, change `<version>` in both places. Without network access at startup, build the file yourself instead (`npm run build:stdio` in `packages/mcp`) and use `command: node` with `args: [/path/to/deribit-mcp.mjs]`.
 
 - Hermes passes a stdio server only the variables in its `env` block (plus `PATH`, `HOME` and a few other basics), so list any other setting you want there too, such as `DERIBIT_LIVE_TTL` or `HTTPS_PROXY`. `${VAR}` reads from the profile's `.env`.
 - Without `DERIBIT_OUTPUT_DIR`, CSVs go to `./deribit-data` under whatever directory Hermes starts the server in.
