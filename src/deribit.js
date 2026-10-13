@@ -10,10 +10,15 @@ import { WebSocketClient } from './ws-client.js';
 import { filterInstrumentsByExpiry, buildOptionsChainCSV } from './options.js';
 import { encode } from '@toon-format/toon';
 
+// Close the WebSocket after this long without an active request
+const WS_IDLE_TIMEOUT_MS = 60_000;
+
 export class DeribitClient {
   constructor(baseUrl = 'https://www.deribit.com/api/v2', clientId = null, clientSecret = null) {
     this.baseUrl = baseUrl;
     this.wsClient = null;
+    this._wsUsers = 0;
+    this._wsIdleTimer = null;
     // Simple in-memory cache with TTL
     this.cache = new Map();
     this.cacheTTL = 2000; // 2 second cache for market data
@@ -40,8 +45,73 @@ export class DeribitClient {
    * Close both HTTP and WebSocket clients.
    */
   async close() {
+    this._clearWsIdleTimer();
     if (this.wsClient) {
       await this.wsClient.close();
+      this.wsClient = null;
+    }
+  }
+
+  /**
+   * Get a connected WebSocket client, creating or reconnecting it as needed.
+   * Every call must be paired with _releaseWsClient().
+   *
+   * @returns {Promise<WebSocketClient>}
+   */
+  async _acquireWsClient() {
+    this._clearWsIdleTimer();
+    if (this.wsClient === null) {
+      let wsUrl = this.baseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+      if (!wsUrl.endsWith('/ws/api/v2')) {
+        wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
+      }
+      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
+    }
+
+    this._wsUsers++;
+    try {
+      // No-op when already connected; reconnects after Deribit dropped the socket
+      await this.wsClient.connect();
+    } catch (error) {
+      this._wsUsers--;
+      throw error;
+    }
+    return this.wsClient;
+  }
+
+  /**
+   * Unsubscribe from ticker channels and, once nobody is using the connection,
+   * close it after WS_IDLE_TIMEOUT_MS so an idle socket doesn't keep the
+   * Durable Object alive.
+   *
+   * @param {WebSocketClient} wsClient - Client returned by _acquireWsClient()
+   * @param {Array<string>} instrumentNames - Instruments to unsubscribe from
+   */
+  async _releaseWsClient(wsClient, instrumentNames) {
+    try {
+      if (wsClient.isConnected()) {
+        await wsClient.unsubscribeTickers(instrumentNames);
+      }
+    } catch (error) {
+      // Don't mask the original result/error; the connection is reset on close
+      console.error('Failed to unsubscribe tickers:', error.message);
+    } finally {
+      this._wsUsers--;
+      if (this._wsUsers === 0) {
+        this._wsIdleTimer = setTimeout(() => {
+          this._wsIdleTimer = null;
+          if (this._wsUsers === 0 && this.wsClient) {
+            this.wsClient.close();
+          }
+        }, WS_IDLE_TIMEOUT_MS);
+      }
+    }
+  }
+
+  _clearWsIdleTimer() {
+    if (this._wsIdleTimer !== null) {
+      clearTimeout(this._wsIdleTimer);
+      this._wsIdleTimer = null;
     }
   }
 
@@ -316,23 +386,15 @@ export class DeribitClient {
    * @returns {Promise<Object>} Dictionary mapping instrument name to ticker data
    */
   async getTickers(instrumentNames) {
-    // Connect WebSocket if not already connected
-    if (this.wsClient === null) {
-      let wsUrl = this.baseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
-      if (!wsUrl.endsWith('/ws/api/v2')) {
-        wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
-      }
-
-      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
-      await this.wsClient.connect();
-    }
+    // Open (or reuse) the WebSocket connection
+    const wsClient = await this._acquireWsClient();
 
     try {
       // Subscribe and get ticker snapshots
-      return await this.wsClient.getTickerSnapshots(instrumentNames);
+      return await wsClient.getTickerSnapshots(instrumentNames);
     } finally {
-      // Clean up: unsubscribe from the streams
-      await this.wsClient.unsubscribeTickers(instrumentNames);
+      // Clean up: unsubscribe from the streams and start the idle timer
+      await this._releaseWsClient(wsClient, instrumentNames);
     }
   }
 
@@ -414,20 +476,12 @@ export class DeribitClient {
       return results;
     }
 
-    // Step 3: Connect WebSocket if not already connected
-    if (this.wsClient === null) {
-      let wsUrl = this.baseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
-      if (!wsUrl.endsWith('/ws/api/v2')) {
-        wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
-      }
-
-      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
-      await this.wsClient.connect();
-    }
+    // Step 3: Open (or reuse) the WebSocket connection
+    const wsClient = await this._acquireWsClient();
 
     try {
       // Step 4: Subscribe and get ticker snapshots for ALL instruments at once (WebSocket)
-      const allTickerData = await this.wsClient.getTickerSnapshots(allInstrumentNames);
+      const allTickerData = await wsClient.getTickerSnapshots(allInstrumentNames);
 
       // Step 5: Build CSV for each expiry from the combined ticker data
       const results = {};
@@ -453,8 +507,8 @@ export class DeribitClient {
 
       return results;
     } finally {
-      // Clean up: unsubscribe from all the streams
-      await this.wsClient.unsubscribeTickers(allInstrumentNames);
+      // Clean up: unsubscribe from all the streams and start the idle timer
+      await this._releaseWsClient(wsClient, allInstrumentNames);
     }
   }
 
@@ -532,21 +586,12 @@ export class DeribitClient {
       return `# No instruments found for ${currency} expiry ${expiry}\n`;
     }
 
-    // Step 3: Connect WebSocket if not already connected
-    if (this.wsClient === null) {
-      // Convert HTTP URL to WebSocket URL
-      let wsUrl = this.baseUrl.replace('https://', 'wss://').replace('http://', 'ws://');
-      if (!wsUrl.endsWith('/ws/api/v2')) {
-        wsUrl = wsUrl.replace(/\/api\/v2.*$/, '/ws/api/v2');
-      }
-
-      this.wsClient = new WebSocketClient(wsUrl, this.clientId, this.clientSecret);
-      await this.wsClient.connect();
-    }
+    // Step 3: Open (or reuse) the WebSocket connection
+    const wsClient = await this._acquireWsClient();
 
     try {
       // Step 4: Subscribe and get ticker snapshots (WebSocket)
-      const tickerData = await this.wsClient.getTickerSnapshots(instrumentNames);
+      const tickerData = await wsClient.getTickerSnapshots(instrumentNames);
 
       // Step 5: Build CSV from ticker data
       const csvOutput = buildOptionsChainCSV(
@@ -559,8 +604,8 @@ export class DeribitClient {
 
       return csvOutput;
     } finally {
-      // Clean up: unsubscribe from the streams
-      await this.wsClient.unsubscribeTickers(instrumentNames);
+      // Clean up: unsubscribe from the streams and start the idle timer
+      await this._releaseWsClient(wsClient, instrumentNames);
     }
   }
 

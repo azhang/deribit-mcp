@@ -22,6 +22,7 @@ export class WebSocketClient {
     this.clientSecret = clientSecret;
     this.accessToken = null;
     this.authenticated = false;
+    this._connecting = null;
   }
 
   _nextId() {
@@ -29,40 +30,91 @@ export class WebSocketClient {
   }
 
   /**
+   * Whether the socket is open and the handshake has completed.
+   */
+  isConnected() {
+    return this.ws !== null && this._connecting === null;
+  }
+
+  /**
    * Establish WebSocket connection and perform handshake.
+   * Safe to call repeatedly or concurrently: reuses an open connection, joins
+   * an in-progress handshake, and reconnects after the socket was closed.
    */
   async connect() {
+    if (this._connecting) {
+      return this._connecting; // Handshake already in progress
+    }
     if (this.ws !== null) {
       return; // Already connected
     }
 
+    this._connecting = this._open().finally(() => {
+      this._connecting = null;
+    });
+    return this._connecting;
+  }
+
+  async _open() {
     console.log(`Connecting to ${this.wsUrl}`);
-    this.ws = new WebSocket(this.wsUrl);
+    const ws = new WebSocket(this.wsUrl);
+    this.ws = ws;
 
-    // Wait for connection to open
-    await new Promise((resolve, reject) => {
-      this.ws.onopen = resolve;
-      this.ws.onerror = reject;
-    });
+    try {
+      // Wait for connection to open
+      await new Promise((resolve, reject) => {
+        ws.onopen = resolve;
+        ws.onerror = () => reject(new Error(`WebSocket connection to ${this.wsUrl} failed`));
+      });
 
-    // Start message receiver
-    this.ws.onmessage = (event) => this._handleMessage(JSON.parse(event.data));
+      // Start message receiver and reset state if Deribit drops the connection
+      ws.onmessage = (event) => this._handleMessage(JSON.parse(event.data));
+      ws.onerror = (event) => console.error('WebSocket error:', event.message || event.type);
+      ws.onclose = () => this._handleClose(ws);
 
-    // Set heartbeat
-    await this._call('public/set_heartbeat', { interval: 10 });
+      // Set heartbeat
+      await this._call('public/set_heartbeat', { interval: 10 });
 
-    // Send hello
-    await this._call('public/hello', {
-      client_name: 'deribit-mcp',
-      client_version: '0.1.0'
-    });
+      // Send hello
+      await this._call('public/hello', {
+        client_name: 'deribit-mcp',
+        client_version: '0.1.0'
+      });
 
-    // Authenticate if credentials are provided
-    if (this.clientId && this.clientSecret) {
-      await this.authenticate();
+      // Authenticate if credentials are provided
+      if (this.clientId && this.clientSecret) {
+        await this.authenticate();
+      }
+    } catch (error) {
+      this._handleClose(ws);
+      try { ws.close(); } catch { /* already closed */ }
+      throw error;
     }
 
     console.log('WebSocket connected and handshake completed');
+  }
+
+  /**
+   * Reset connection state after the socket closed, failing in-flight requests
+   * so callers don't wait for the request timeout. The next connect() reconnects.
+   *
+   * @param {WebSocket} ws - The socket that closed
+   */
+  _handleClose(ws) {
+    if (this.ws !== ws) {
+      return; // A newer connection has already replaced this one
+    }
+    this.ws = null;
+    this.accessToken = null;
+    this.authenticated = false;
+    this._subscriptions.clear();
+
+    for (const [msgId, pending] of this._pendingResponses) {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error('WebSocket connection closed'));
+      this._pendingResponses.delete(msgId);
+    }
+    console.log('WebSocket connection closed');
   }
 
   /**
@@ -95,10 +147,10 @@ export class WebSocketClient {
    * Close WebSocket connection.
    */
   async close() {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-      console.log('WebSocket connection closed');
+    const ws = this.ws;
+    if (ws) {
+      this._handleClose(ws);
+      ws.close();
     }
   }
 
@@ -252,6 +304,10 @@ export class WebSocketClient {
         }
         console.log(`Received all ${Object.keys(result).length} snapshots`);
         return result;
+      }
+
+      if (this.ws === null) {
+        throw new Error('WebSocket connection closed while waiting for snapshots');
       }
 
       // Check timeout
