@@ -1,0 +1,30 @@
+{
+  "name": "@deribit-mcp/client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deribit JSON-RPC client generated from Deribit's published OpenAPI and AsyncAPI specs",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "files": ["src"],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "check-spec": "node scripts/check-spec.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"test/*.test.mjs\"",
+    "test:live": "DERIBIT_LIVE=1 node --test \"test/*.test.mjs\""
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}
