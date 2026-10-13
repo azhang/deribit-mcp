@@ -1,0 +1,32 @@
+{
+  "name": "@deribit-mcp/server",
+  "version": "2.0.0-alpha.0",
+  "private": true,
+  "description": "Deribit MCP server v2: hosted public market data, or local with your own key",
+  "type": "module",
+  "bin": {
+    "deribit-mcp": "src/stdio.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "classify": "node scripts/classify.mjs",
+    "test": "node --test \"test/*.test.mjs\"",
+    "smoke:workerd": "node test/workerd-smoke.mjs"
+  },
+  "dependencies": {
+    "@deribit-mcp/client": "file:../deribit-client",
+    "@modelcontextprotocol/server": "2.0.0",
+    "agents": "0.28.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@cloudflare/workers-types": "^5.20261013.1",
+    "wrangler": "^4.150.0"
+  }
+}
