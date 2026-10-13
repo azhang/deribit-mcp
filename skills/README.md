@@ -4,7 +4,9 @@
 
 `deribit/` is the public Deribit skill: tool selection, instrument naming and units, safety rules for account tools, analysis recipes, and scripts that work without an MCP server. It follows the open `SKILL.md` format.
 
-Install it by copying or symlinking the folder:
+In Claude Code, the `deribit` plugin installs this skill together with the hosted MCP server: `/plugin install deribit --marketplace azhang/deribit-mcp`. The marketplace is `.claude-plugin/marketplace.json` at the repo root.
+
+To install only the skill, copy or symlink the folder:
 
 | Host | Location |
 |---|---|
