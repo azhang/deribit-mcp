@@ -277,3 +277,13 @@ test('subscriptions reconnect and resubscribe after the server drops the socket'
   await sub.unsubscribe();
   d.close();
 });
+
+test('fetch is called on the global object (Workers rejects other receivers)', async () => {
+  let receiver;
+  const fetch = function (_url, init) {
+    receiver = this;
+    return Promise.resolve({ ok: true, status: 200, json: async () => ({ result: JSON.parse(init.body).method }) });
+  };
+  await new Deribit({ fetch }).public.get_time();
+  assert.equal(receiver, globalThis);
+});
