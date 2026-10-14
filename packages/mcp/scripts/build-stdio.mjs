@@ -6,7 +6,7 @@
  *
  *   npm run build:stdio
  *
- * The output is not checked in: dependencies use caret ranges, so it is rebuilt, not diffed.
+ * The output is not checked in: releases build it from the locked dependencies (`npm ci`).
  */
 import { build } from 'esbuild';
 import { readFile, writeFile } from 'node:fs/promises';
