@@ -1,7 +1,7 @@
 name: v2 stdio server release
 # Push a tag `mcp-v<version>` matching packages/mcp/package.json. CI tests, builds the
 # single-file bundle, and attaches it as an npm tarball to a GitHub Release, so clients run
-#   npx -y https://github.com/azhang/deribit-mcp/releases/download/mcp-v<version>/deribit-mcp-server-<version>.tgz
+#   npx -y --allow-remote=root https://github.com/azhang/deribit-mcp/releases/download/mcp-v<version>/deribit-mcp-server-<version>.tgz
 
 on:
   push:

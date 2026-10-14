@@ -54,7 +54,7 @@ Then:
 mcp_servers:
   deribit:
     command: npx
-    args: ["-y", "https://github.com/azhang/deribit-mcp/releases/download/mcp-v<version>/deribit-mcp-server-<version>.tgz"]
+    args: ["-y", "--allow-remote=root", "https://github.com/azhang/deribit-mcp/releases/download/mcp-v<version>/deribit-mcp-server-<version>.tgz"]
     env:
       DERIBIT_CLIENT_ID: "${DERIBIT_CLIENT_ID}"
       DERIBIT_CLIENT_SECRET: "${DERIBIT_CLIENT_SECRET}"
@@ -63,6 +63,10 @@ mcp_servers:
     tools:
       exclude: [cancel_orders, deribit_call_write]
 ```
+
+`--allow-remote=root` is needed on npm 12, which refuses to install from a URL by default; older npm ignores it.
+
+If the key isn't in the profile's `.env` yet, an unset `${VAR}` reaches the server as literal text. From `mcp-v2.0.0-alpha.1` the server treats that as no key, logs a warning and serves public data only; `mcp-v2.0.0-alpha.0` takes it for a key and Deribit then rejects even public calls, so with that release leave the two key lines out until the key is set.
 
 The dashboard's "Add MCP server" form takes the same command, args and environment. To update, change `<version>` in both places. Without network access at startup, build the file yourself instead (`npm run build:stdio` in `packages/mcp`) and use `command: node` with `args: [/path/to/deribit-mcp.mjs]`.
 
