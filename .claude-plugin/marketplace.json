@@ -1,6 +1,6 @@
 {
   "name": "deribit-mcp",
-  "description": "Deribit market data for Claude Code: the deribit skill plus the hosted MCP server. Also listed in azhang/claude-plugins.",
+  "description": "Deribit market data for Claude Code: the deribit skill plus the hosted MCP server. Also listed in the mcpx marketplace at azhang/agent-plugins.",
   "owner": { "name": "Allie", "url": "https://github.com/azhang" },
   "plugins": [
     {
